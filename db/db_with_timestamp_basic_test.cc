@@ -369,7 +369,9 @@ TEST_F(DBBasicTestWithTimestamp, UpdateFullHistoryTsLowWithPublicAPI) {
   // test IncreaseFullHistoryTsLow concurrently. When actual ts_low is higher
   // than requested ts_low, a try again error is returned.
   DestroyAndReopen(options);
+  std::map<int, VersionEdit*> thread_to_edit_map;
   std::atomic<int> cnt{0};
+  std::atomic<bool> before_writer_waiting_cb_invoked = false;
   const auto get_thread_id = [&cnt]() {
     thread_local int thread_id{cnt++};
     return thread_id;
@@ -378,61 +380,136 @@ TEST_F(DBBasicTestWithTimestamp, UpdateFullHistoryTsLowWithPublicAPI) {
   SyncPoint::GetInstance()->ClearAllCallBacks();
   // what it takes to get try again
   // write concurrently with another thread that is writing a bigger value
-  SyncPoint::GetInstance()->SetCallBack(
-      "VersionSet::LogAndApply:BeforeWriterWaiting", [&](void* /*arg*/) {
-        int thread_id = get_thread_id();
-        if (0 == thread_id) {
-          TEST_SYNC_POINT(
-              "DBBasicTestWithTimestamp::UpdateFullHistoryTsLowWithPublicAPI:"
-              "write_higher:0");
-          TEST_SYNC_POINT(
-              "DBBasicTestWithTimestamp::UpdateFullHistoryTsLowWithPublicAPI:"
-              "write_higher:1");
-        }
-      });
+  //  SyncPoint::GetInstance()->SetCallBack(
+  //      "VersionSet::LogAndApply:BeforeWriterWaiting", [&](void* /*arg*/) {
+  //        int thread_id = get_thread_id();
+  //        if (0 == thread_id) {
+  //          TEST_SYNC_POINT(
+  //              "DBBasicTestWithTimestamp::UpdateFullHistoryTsLowWithPublicAPI:"
+  //              "write_higher:0");
+  //          TEST_SYNC_POINT(
+  //              "DBBasicTestWithTimestamp::UpdateFullHistoryTsLowWithPublicAPI:"
+  //              "write_higher:1");
+  //        }
+  //      });
   SyncPoint::GetInstance()->LoadDependency({
-      {"DBBasicTestWithTimestamp::UpdateFullHistoryTsLowWithPublicAPI:"
-       "write_higher:0",
-       "DBBasicTestWithTimestamp::UpdateFullHistoryTsLowWithPublicAPI:"
-       "WriteLowerStart"},
-      {"DBBasicTestWithTimestamp::UpdateFullHistoryTsLowWithPublicAPI:"
-       "WriteLowerStart",
-       "DBBasicTestWithTimestamp::UpdateFullHistoryTsLowWithPublicAPI:"
-       "write_higher:1"},
-  });
-  SyncPoint::GetInstance()->EnableProcessing();
-  port::Thread write_higher_thread([&]() {
-    std::string higher_ts_low = Timestamp(25, 0);
-    ASSERT_OK(db_->IncreaseFullHistoryTsLow(db_->DefaultColumnFamily(),
-                                            higher_ts_low));
-  });
-  port::Thread write_lower_thread([&]() {
-    std::string lower_ts_low = Timestamp(10, 0);
-    TEST_SYNC_POINT(
-        "DBBasicTestWithTimestamp::UpdateFullHistoryTsLowWithPublicAPI:"
-        "WriteLowerStart");
-    ASSERT_TRUE(
-        db_->IncreaseFullHistoryTsLow(db_->DefaultColumnFamily(), lower_ts_low)
-            .IsTryAgain());
-  });
-  write_lower_thread.join();
-  write_higher_thread.join();
-  SyncPoint::GetInstance()->DisableProcessing();
-  SyncPoint::GetInstance()->ClearAllCallBacks();
+    {"DBBasicTestWithTimestamp::UpdateFullHistoryTsLowWithPublicAPI:"
+     "WriteLowerStart",
+     "DBBasicTestWithTimestamp::UpdateFullHistoryTsLowWithPublicAPI:"
+     "WriteHigherInProcess"},
+        //        {"DBBasicTestWithTimestamp::UpdateFullHistoryTsLowWithPublicAPI:"
+        //         "write_higher:0",
+        //         "DBBasicTestWithTimestamp::UpdateFullHistoryTsLowWithPublicAPI:"
+        //         "WriteLowerStart"},
+        //        {"DBBasicTestWithTimestamp::UpdateFullHistoryTsLowWithPublicAPI:"
+        //              "write_higher:0");
+        //          TEST_SYNC_POINT(
+        //              "DBBasicTestWithTimestamp::UpdateFullHistoryTsLowWithPublicAPI:"
+        //              "write_higher:1");
+        //        }
+        //      });
+        SyncPoint::GetInstance()->LoadDependency({
+            {"DBBasicTestWithTimestamp::UpdateFullHistoryTsLowWithPublicAPI:"
+             "WriteLowerStart",
+             "DBBasicTestWithTimestamp::UpdateFullHistoryTsLowWithPublicAPI:"
+             "WriteHigherInProcess"},
+            //        {"DBBasicTestWithTimestamp::UpdateFullHistoryTsLowWithPublicAPI:"
+            //         "write_higher:0",
+            //         "DBBasicTestWithTimestamp::UpdateFullHistoryTsLowWithPublicAPI:"
+            //         "WriteLowerStart"},
+            //        {"DBBasicTestWithTimestamp::UpdateFullHistoryTsLowWithPublicAPI:"
+            //         "WriteLowerStart",
+            //         "DBBasicTestWithTimestamp::UpdateFullHistoryTsLowWithPublicAPI:"
+            //         "write_higher:1"},
+        });
+    SyncPoint::GetInstance()->SetCallBack(
+        "DBImpl::IncreaseFullHistoryTsLowImpl:BeforeEdit", [&](void* arg) {
+          auto* edit = reinterpret_cast<VersionEdit*>(arg);
+          int thread_id = get_thread_id();
+          thread_to_edit_map[thread_id] = edit;
+          if (thread_id == 1) {
+            std::cout << "yuzhangyu test, write lower started" << std::endl;
+            TEST_SYNC_POINT(
+                "DBBasicTestWithTimestamp::UpdateFullHistoryTsLowWithPublicAPI:"
+                "WriteLowerStart");
+          }
+        });
+    SyncPoint::GetInstance()->SetCallBack(
+        "VersionSet::LogAndApply:BeforeWriterWaiting", [&](void* /*arg*/) {
+          int thread_id = get_thread_id();
+          std::string higher_ts_low = Timestamp(25, 0);
+          std::string lower_ts_low = Timestamp(10, 0);
+          const auto& existing_ts_low_in_edit =
+              thread_to_edit_map[thread_id]->GetFullHistoryTsLow();
+          if (!before_writer_waiting_cb_invoked) {
+            std::cout << "yuzhangyu test, thread: " << thread_id
+                      << " reach the queue first with: "
+                      << Slice(existing_ts_low_in_edit).ToString(true)
+                      << std::endl;
+            std::cout << "yuzhangyu test, update it to high ts_low"
+                      << std::endl;
+            thread_to_edit_map[thread_id]->SetFullHistoryTsLow(higher_ts_low);
+            before_writer_waiting_cb_invoked = true;
+          } else {
+            std::cout << "yuzhangyu test, thread: " << thread_id
+                      << " reach the queue later with:"
+                      << Slice(existing_ts_low_in_edit).ToString(true)
+                      << std::endl;
+            std::cout << "yuzhangyu test, update it to low ts_low" << std::endl;
+            thread_to_edit_map[thread_id]->SetFullHistoryTsLow(lower_ts_low);
+          }
+          if (thread_id == 0) {
+            std::cout
+                << "yuzhangyu test, write higher in progress, wait in queue."
+                << std::endl;
+            TEST_SYNC_POINT(
+                "DBBasicTestWithTimestamp::UpdateFullHistoryTsLowWithPublicAPI:"
+                "WriteHigherInProcess");
+          } else if (thread_id == 1) {
+            std::cout
+                << "yuzhangyu test, write lower in progress, wait in queue."
+                << std::endl;
+          }
+        });
+    // lower ts writing thread must have started before higher writing ts thread
+    // finished. Otherwise, we will get InvalidArgument error.
+    SyncPoint::GetInstance()->EnableProcessing();
+    port::Thread write_higher_thread([&]() {
+      std::string higher_ts_low = Timestamp(25, 0);
+      ASSERT_OK(db_->IncreaseFullHistoryTsLow(db_->DefaultColumnFamily(),
+                                              higher_ts_low));
+      std::cout << "yuzhangyu test, write higher finishes" << std::endl;
+    });
+    port::Thread write_lower_thread([&]() {
+      std::string lower_ts_low = Timestamp(10, 0);
+      //    TEST_SYNC_POINT(
+      //        "DBBasicTestWithTimestamp::UpdateFullHistoryTsLowWithPublicAPI:"
+      //        "WriteLowerStart");
+      Status error_s = db_->IncreaseFullHistoryTsLow(db_->DefaultColumnFamily(),
+                                                     lower_ts_low);
+      std::cout << "yuzhangyu test, write lower finishes" << std::endl;
+      std::cout << "yuzhangyu test, error_s: " << error_s.ToString()
+                << std::endl;
+      ASSERT_TRUE(error_s.IsTryAgain());
+    });
+    write_lower_thread.join();
+    write_higher_thread.join();
+    SyncPoint::GetInstance()->DisableProcessing();
+    SyncPoint::GetInstance()->ClearAllCallBacks();
 
-  // test IncreaseFullHistoryTsLow for a column family that does not enable
-  // timestamp
-  options.comparator = BytewiseComparator();
-  DestroyAndReopen(options);
-  ts_low_str = Timestamp(10, 0);
-  s = db_->IncreaseFullHistoryTsLow(db_->DefaultColumnFamily(), ts_low_str);
-  ASSERT_EQ(s, Status::InvalidArgument());
-  // test GetFullHistoryTsLow for a column family that does not enable
-  // timestamp
-  std::string current_ts_low;
-  s = db_->GetFullHistoryTsLow(db_->DefaultColumnFamily(), &current_ts_low);
-  ASSERT_EQ(s, Status::InvalidArgument());
-  Close();
+    // test IncreaseFullHistoryTsLow for a column family that does not enable
+    // timestamp
+    options.comparator = BytewiseComparator();
+    DestroyAndReopen(options);
+    ts_low_str = Timestamp(10, 0);
+    s = db_->IncreaseFullHistoryTsLow(db_->DefaultColumnFamily(), ts_low_str);
+    ASSERT_EQ(s, Status::InvalidArgument());
+    // test GetFullHistoryTsLow for a column family that does not enable
+    // timestamp
+    std::string current_ts_low;
+    s = db_->GetFullHistoryTsLow(db_->DefaultColumnFamily(), &current_ts_low);
+    ASSERT_EQ(s, Status::InvalidArgument());
+    Close();
 }
 
 TEST_F(DBBasicTestWithTimestamp, GetApproximateSizes) {
