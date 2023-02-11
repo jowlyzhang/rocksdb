@@ -42,6 +42,12 @@ std::string DBBasicTestWithTimestampBase::Timestamp(uint64_t low,
   return ts;
 }
 
+std::string DBBasicTestWithTimestampBase::TimestampForCrashTest(uint64_t ts) {
+  std::string ts_string;
+  PutFixed64(&ts_string, ts);
+  return ts_string;
+}
+
 void DBBasicTestWithTimestampBase::CheckIterUserEntry(
     const Iterator* it, const Slice& expected_key,
     ValueType expected_value_type, const Slice& expected_value,

@@ -1978,6 +1978,135 @@ TEST_F(DBBlobWithTimestampTest, MultiGetMergeBlobWithPut) {
   ASSERT_EQ(values[2], "v2_0");
 }
 
+// An example test to read the data from a database that has crashed.
+TEST_F(DBBlobWithTimestampTest, IterateBlobsFromCache) {
+//  Options options = GetDefaultOptions();
+
+//  LRUCacheOptions co;
+//  co.capacity = 2 << 20;  // 2MB
+//  co.num_shard_bits = 2;
+//  co.metadata_charge_policy = kDontChargeCacheMetadata;
+//  auto backing_cache = NewLRUCache(co);
+//
+//  options.enable_blob_files = true;
+//  options.blob_cache = backing_cache;
+//
+//  BlockBasedTableOptions block_based_options;
+//  block_based_options.no_block_cache = false;
+//  block_based_options.block_cache = backing_cache;
+//  block_based_options.cache_index_and_filter_blocks = true;
+//  options.table_factory.reset(NewBlockBasedTableFactory(block_based_options));
+//
+//  options.statistics = CreateDBStatistics();
+//
+//  Reopen(options);
+
+//  int num_blobs = 5;
+//  std::vector<std::string> keys;
+//  std::vector<std::string> blobs;
+//
+//  for (int i = 0; i < num_blobs; ++i) {
+//    keys.push_back("key" + std::to_string(i));
+//    blobs.push_back("blob" + std::to_string(i));
+//    ASSERT_OK(Put(keys[i], blobs[i]));
+//  }
+//  ASSERT_OK(Flush());
+
+  ReadOptions read_options;
+  // Update this to the most recent epoch to be able to read data out.
+  std::string read_ts = TimestampForCrashTest(1676075318000000000);
+  Slice read_ts_slice(read_ts);
+//  std::string iter_start_ts = TimestampForDebugStress(0);
+//  Slice iter_start_ts_slice(iter_start_ts);
+  std::string upper_bound = "random";
+  Slice upper_bound_slice(upper_bound);
+
+  {
+    for (auto handle : handles_) {
+      read_options.fill_cache = false;
+      read_options.read_tier = kReadAllTier;
+      read_options.timestamp = &read_ts_slice;
+//      read_options.iter_start_ts = &iter_start_ts_slice;
+//      read_options.snapshot = snapshot_guard.snapshot();
+      read_options.total_order_seek = true;
+//      read_options.iterate_upper_bound = &upper_bound_slice;
+
+      std::unique_ptr<Iterator> iter(db_->NewIterator(read_options, handle));
+      ASSERT_OK(iter->status());
+
+      int i = 0;
+      for (iter->SeekToLast(); iter->Valid(); iter->Prev()) {
+        ASSERT_OK(iter->status());
+        if (i == 0) {
+          std::cout << "Column family " << handle->GetName() << " last key " << iter->key().ToString();
+        }
+//        ASSERT_EQ(iter->key().ToString(), keys[i]);
+//        ASSERT_EQ(iter->value().ToString(), blobs[i]);
+        ++i;
+      }
+      std::cout << "Column family " << handle->GetName() << " has " << i << " entries.";
+      //    ASSERT_EQ(i, num_blobs);
+      //    ASSERT_EQ(options.statistics->getAndResetTickerCount(BLOB_DB_CACHE_ADD), 0);
+    }
+  }
+
+//  {
+//    read_options.fill_cache = false;
+//    read_options.read_tier = kBlockCacheTier;
+//
+//    std::unique_ptr<Iterator> iter(db_->NewIterator(read_options));
+//    ASSERT_OK(iter->status());
+//
+//    // Try again with no I/O allowed. Since we didn't re-fill the cache,
+//    // the blob itself can only be read from the blob file, so iter->Valid()
+//    // should be false.
+//    iter->SeekToFirst();
+//    ASSERT_NOK(iter->status());
+//    ASSERT_FALSE(iter->Valid());
+//    ASSERT_EQ(options.statistics->getAndResetTickerCount(BLOB_DB_CACHE_ADD), 0);
+//  }
+//
+//  {
+//    read_options.fill_cache = true;
+//    read_options.read_tier = kReadAllTier;
+//
+//    std::unique_ptr<Iterator> iter(db_->NewIterator(read_options));
+//    ASSERT_OK(iter->status());
+//
+//    // Read blobs from the file and refill the cache.
+//    int i = 0;
+//    for (iter->SeekToFirst(); iter->Valid(); iter->Next()) {
+//      ASSERT_OK(iter->status());
+//      ASSERT_EQ(iter->key().ToString(), keys[i]);
+//      ASSERT_EQ(iter->value().ToString(), blobs[i]);
+//      ++i;
+//    }
+//    ASSERT_EQ(i, num_blobs);
+//    ASSERT_EQ(options.statistics->getAndResetTickerCount(BLOB_DB_CACHE_ADD),
+//              num_blobs);
+//  }
+//
+//  {
+//    read_options.fill_cache = false;
+//    read_options.read_tier = kBlockCacheTier;
+//
+//    std::unique_ptr<Iterator> iter(db_->NewIterator(read_options));
+//    ASSERT_OK(iter->status());
+//
+//    // Try again with no I/O allowed. The table and the necessary blocks/blobs
+//    // should already be in their respective caches.
+//    int i = 0;
+//    for (iter->SeekToFirst(); iter->Valid(); iter->Next()) {
+//      ASSERT_OK(iter->status());
+//      ASSERT_EQ(iter->key().ToString(), keys[i]);
+//      ASSERT_EQ(iter->value().ToString(), blobs[i]);
+//      ++i;
+//    }
+//    ASSERT_EQ(i, num_blobs);
+//    ASSERT_EQ(options.statistics->getAndResetTickerCount(BLOB_DB_CACHE_ADD), 0);
+//  }
+}
+
 }  // namespace ROCKSDB_NAMESPACE
 
 int main(int argc, char** argv) {

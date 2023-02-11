@@ -18,6 +18,7 @@
 #include "rocksdb/env_encryption.h"
 #include "rocksdb/unique_id.h"
 #include "rocksdb/utilities/object_registry.h"
+#include "rocksdb/utilities/options_util.h"
 #include "table/format.h"
 #include "util/random.h"
 
@@ -64,7 +65,17 @@ SpecialEnv::SpecialEnv(Env* base, bool time_elapse_only_sleep)
 DBTestBase::DBTestBase(const std::string path, bool env_do_fsync)
     : mem_env_(nullptr), encrypted_env_(nullptr), option_config_(kDefault) {
   Env* base_env = Env::Default();
+  DBOptions db_options;
   ConfigOptions config_options;
+  config_options.ignore_unknown_options = false;
+  config_options.input_strings_escaped = true;
+  std::vector<ColumnFamilyDescriptor> cf_descriptors;
+  dbname_ = path;
+  dbname_ = "/Users/yuzhangyu/CLionProjects/rocksdb/test_tmp/rocksdb_crashtest_whiteboxr8k69kfu";
+//  dbname_ = "/var/folders/7q/26m5lwg55j99zd2lmrz21rvc0000gn/T/rocksdb_crashtest_whiteboxh1nmxq6t";
+  std::string options_file = dbname_ + "/OPTIONS-003140";
+  EXPECT_OK(LoadOptionsFromFile(config_options, options_file,
+                                &db_options, &cf_descriptors));
   EXPECT_OK(test::CreateEnvFromSystem(config_options, &base_env, &env_guard_));
   EXPECT_NE(nullptr, base_env);
   if (getenv("MEM_ENV")) {
@@ -77,7 +88,7 @@ DBTestBase::DBTestBase(const std::string path, bool env_do_fsync)
         !EndsWith(provider_id, "://test")) {
       provider_id = provider_id + "://test";
     }
-    EXPECT_OK(EncryptionProvider::CreateFromString(ConfigOptions(), provider_id,
+    EXPECT_OK(EncryptionProvider::CreateFromString(config_options, provider_id,
                                                    &provider));
     encrypted_env_ = NewEncryptedEnv(mem_env_ ? mem_env_ : base_env, provider);
   }
@@ -86,18 +97,21 @@ DBTestBase::DBTestBase(const std::string path, bool env_do_fsync)
   env_->SetBackgroundThreads(1, Env::LOW);
   env_->SetBackgroundThreads(1, Env::HIGH);
   env_->skip_fsync_ = !env_do_fsync;
-  dbname_ = test::PerThreadDBPath(env_, path);
-  alternative_wal_dir_ = dbname_ + "/wal";
-  alternative_db_log_dir_ = dbname_ + "/db_log_dir";
-  auto options = CurrentOptions();
+  //  dbname_ = test::PerThreadDBPath(env_, path);
+  auto options = Options(db_options, cf_descriptors[0].options);
   options.env = env_;
-  auto delete_options = options;
-  delete_options.wal_dir = alternative_wal_dir_;
-  EXPECT_OK(DestroyDB(dbname_, delete_options));
-  // Destroy it for not alternative WAL dir is used.
-  EXPECT_OK(DestroyDB(dbname_, options));
+  db_options.env = new CompositeEnvWrapper(env_);
+
+  //  alternative_wal_dir_ = dbname_ + "/wal";
+  //  alternative_db_log_dir_ = dbname_ + "/db_log_dir";
+  //  auto delete_options = options;
+  //  delete_options.wal_dir = alternative_wal_dir_;
+  //  EXPECT_OK(DestroyDB(dbname_, delete_options));
+  //  // Destroy it for not alternative WAL dir is used.
+  //  EXPECT_OK(DestroyDB(dbname_, options));
   db_ = nullptr;
-  Reopen(options);
+  std::vector<std::string> cfs = {"default", "1", "2", "3", "4", "5", "6", "7" ,"8", "9"};
+  ReopenWithColumnFamilies(cfs, options);
   Random::GetTLSInstance()->Reset(0xdeadbeef);
 }
 
@@ -659,7 +673,9 @@ Status DBTestBase::TryReopenWithColumnFamilies(
 }
 
 void DBTestBase::Reopen(const Options& options) {
-  ASSERT_OK(TryReopen(options));
+//  ASSERT_OK(TryReopen(options));
+  auto s = TryReopen(options);
+  ASSERT_OK(s);
 }
 
 void DBTestBase::Close() {

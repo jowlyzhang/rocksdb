@@ -109,6 +109,8 @@ class DBBasicTestWithTimestampBase : public DBTestBase {
 
   std::string Timestamp(uint64_t low, uint64_t high);
 
+  std::string TimestampForCrashTest(uint64_t ts);
+
   void CheckIterUserEntry(const Iterator* it, const Slice& expected_key,
                           ValueType expected_value_type,
                           const Slice& expected_value,
