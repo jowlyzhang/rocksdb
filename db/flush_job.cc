@@ -182,12 +182,19 @@ void FlushJob::PickMemTable() {
   // necessarily equal to max_next_log_number.
   uint64_t max_next_log_number = 0;
 
+  // TODO(yuzhangyu): fail fast here is not fast enough  either.
+//  std::string newest_udt;
   // Save the contents of the earliest memtable as a new Table
   cfd_->imm()->PickMemtablesToFlush(max_memtable_id_, &mems_,
                                     &max_next_log_number);
   if (mems_.empty()) {
     return;
   }
+
+//  if (newest_udt > cutoff_udt_ && no_write_stall) {
+//    mems_.clear();
+//    return;
+//  }
 
   ReportFlushInputSize(mems_);
 

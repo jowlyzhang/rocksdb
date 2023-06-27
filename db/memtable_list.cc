@@ -367,6 +367,7 @@ bool MemTableListVersion::TrimHistory(autovector<MemTable*>* to_delete,
 
 // Returns true if there is at least one memtable on which flush has
 // not yet started.
+// TODO(yuzhangyu): remove this comment
 bool MemTableList::IsFlushPending() const {
   if ((flush_requested_ && num_flush_not_started_ > 0) ||
       (num_flush_not_started_ >= min_write_buffer_number_to_merge_)) {
@@ -407,6 +408,11 @@ void MemTableList::PickMemtablesToFlush(uint64_t max_memtable_id,
     if (m->GetID() > max_memtable_id) {
       break;
     }
+    // TODO(yuzhangyu): for UDT in memtable only featgure, what if we added a
+    //  simple skip logic here like:
+//    if (newest_udt != nullptr) {
+//      *newest_udt = m->GetNewestUdt();
+//    }
     if (!m->flush_in_progress_) {
       assert(!m->flush_completed_);
       num_flush_not_started_--;

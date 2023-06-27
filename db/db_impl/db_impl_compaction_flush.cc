@@ -219,6 +219,14 @@ Status DBImpl::FlushMemTableToOutputFile(
   FileMetaData file_meta;
 
   Status s;
+
+  // TODO(yuzhangyu): this fail fast is not fast enough, causing extra cpus to
+  // be wasted.
+//  bool hold_on_flush = flush_job.ShouldHoldOnFlush();
+//  if (hold_on_flush && no_write_stalls) {
+//    // TODO(yuzhangyu): add event logging
+//    return Status::OK();
+//  }
   bool need_cancel = false;
   IOStatus log_io_s = IOStatus::OK();
   if (needs_to_sync_closed_wals) {
@@ -2968,6 +2976,7 @@ Status DBImpl::BackgroundFlush(bool* made_progress, JobContext* job_context,
   std::vector<SuperVersionContext>& superversion_contexts =
       job_context->superversion_contexts;
   autovector<ColumnFamilyData*> column_families_not_to_flush;
+  autovector<FlushRequest> flush_reqs_to_re_enqueue;
   while (!flush_queue_.empty()) {
     // This cfd is already referenced
     const FlushRequest& flush_req = PopFirstFromFlushQueue();
@@ -2975,7 +2984,7 @@ Status DBImpl::BackgroundFlush(bool* made_progress, JobContext* job_context,
     superversion_contexts.clear();
     superversion_contexts.reserve(
         flush_req.cfd_to_max_mem_id_to_persist.size());
-
+    bool should_skip = flush_req.req_repeat_count == 1;
     for (const auto& iter : flush_req.cfd_to_max_mem_id_to_persist) {
       ColumnFamilyData* cfd = iter.first;
       if (cfd->GetMempurgeUsed()) {
@@ -2985,9 +2994,34 @@ Status DBImpl::BackgroundFlush(bool* made_progress, JobContext* job_context,
         cfd->imm()->FlushRequested();
       }
 
-      if (cfd->IsDropped() || !cfd->imm()->IsFlushPending()) {
+      // TODO(yuzhangyu): we want to check if holding on flush would cause
+      // write stall to happen, which means flushing could mitigate write stall?
+      // Check the function details in `GetWriteStallConditionAndCause` first.
+      // check whether one extra immutable memtable or an extra L0 file would
+      // cause write stalling mode to be entered. It could still enter stall
+      // mode due to pending compaction bytes, but that's less common
+      //     WriteStallCondition write_stall_condition = ColumnFamilyData::GetWriteStallConditionAndCause(
+      //                                  cfd->imm()->NumNotFlushed() + 1,
+      //                                  vstorage->l0_delay_trigger_count() + 1,
+      //                                  vstorage->estimated_compaction_needed_bytes(),
+      //                                  mutable_cf_options, *cfd->ioptions())
+      //                                  .first;
+      //      if (cfd->NoImmPastCutOff() && write_stall_condition == kNone) {
+      //        column_families_to_hold_flush.push_back(std::make_pair(cfd, flush_reason));
+      //      }
+
+      if (cfd->IsDropped() || !cfd->imm()->IsFlushPending() || should_skip) {
         // can't flush this CF, try next one
         column_families_not_to_flush.push_back(cfd);
+        // TODO(yuzhangyu): remove this logic. Always unconditionally reschedule the flush job on its first encounter to check if there is any concerns with re-queueing a job from the background thread.
+        if (should_skip) {
+          FlushRequest flush_req_to_repeat;
+          flush_req_to_repeat.cfd_to_max_mem_id_to_persist =
+              flush_req.cfd_to_max_mem_id_to_persist;
+          flush_req_to_repeat.flush_reason = flush_req.flush_reason;
+          flush_req_to_repeat.req_repeat_count = 2;
+          flush_reqs_to_re_enqueue.push_back(flush_req_to_repeat);
+        }
         continue;
       }
       superversion_contexts.emplace_back(SuperVersionContext(true));
@@ -3033,6 +3067,13 @@ Status DBImpl::BackgroundFlush(bool* made_progress, JobContext* job_context,
   }
   for (auto cfd : column_families_not_to_flush) {
     cfd->UnrefAndTryDelete();
+  }
+
+  // TODO(yuzhangyu): edit this comment. reschedule flushing for column families
+  // for which flush is being held because the cutoff user-defined timestamp
+  // `full_history_ts_low` needs to be respected.
+    for (auto new_flush_req : flush_reqs_to_re_enqueue) {
+    SchedulePendingFlush(new_flush_req);
   }
   return status;
 }

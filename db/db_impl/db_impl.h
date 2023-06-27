@@ -2057,12 +2057,13 @@ class DBImpl : public DB {
     FlushReason flush_reason;
     // A map from column family to flush to largest memtable id to persist for
     // each column family. Once all the memtables whose IDs are smaller than or
-    // equal to this per-column-family specified value, this flush request is
+    // equal to this per-column-family specified value are flushed, this flush request is
     // considered to have completed its work of flushing this column family.
     // After completing the work for all column families in this request, this
     // flush is considered complete.
     std::unordered_map<ColumnFamilyData*, uint64_t>
         cfd_to_max_mem_id_to_persist;
+    int req_repeat_count = 1;
   };
 
   void GenerateFlushRequest(const autovector<ColumnFamilyData*>& cfds,
