@@ -6438,6 +6438,8 @@ Status VersionSet::WriteCurrentStateToManifest(
       }
       edit.SetComparatorName(
           cfd->internal_comparator().user_comparator()->Name());
+      edit.SetPersistUserDefinedTimestamps(
+          cfd->ioptions()->persist_user_defined_timestamps);
       std::string record;
       if (!edit.EncodeTo(&record)) {
         return Status::Corruption("Unable to Encode VersionEdit:" +
@@ -6462,7 +6464,6 @@ Status VersionSet::WriteCurrentStateToManifest(
 
       for (int level = 0; level < cfd->NumberLevels(); level++) {
         const auto& level_files = vstorage->LevelFiles(level);
-
         for (const auto& f : level_files) {
           assert(f);
 
