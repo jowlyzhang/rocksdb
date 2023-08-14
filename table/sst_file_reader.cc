@@ -78,7 +78,7 @@ Iterator* SstFileReader::NewIterator(const ReadOptions& roptions) {
             r->moptions.max_sequential_skip_in_iterations,
             0 /* version_number */, nullptr /* read_callback */,
             nullptr /* db_impl */, nullptr /* cfd */,
-            true /* expose_blob_index */, false /* allow_refresh */);
+            true /* expose_blob_index */, false /* allow_refresh */, nullptr /* seqno_to_time_mapping */);
   auto internal_iter = r->table_reader->NewIterator(
       res->GetReadOptions(), r->moptions.prefix_extractor.get(),
       res->GetArena(), false /* skip_filters */,

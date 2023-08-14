@@ -2009,7 +2009,9 @@ Status DBImpl::TrimMemtableHistory(WriteContext* context) {
     if (trimmed) {
       context->superversion_context.NewSuperVersion();
       assert(context->superversion_context.new_superversion.get() != nullptr);
-      cfd->InstallSuperVersion(&context->superversion_context, &mutex_);
+      SeqnoToTimeMapping seqno_to_time_mapping = GetSeqnoToTimeMapping();
+      cfd->InstallSuperVersion(&context->superversion_context, &mutex_,
+                               std::move(seqno_to_time_mapping));
     }
 
     if (cfd->UnrefAndTryDelete()) {

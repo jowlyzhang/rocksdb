@@ -133,6 +133,19 @@ class Iterator : public Cleanable {
   // Property "rocksdb.iterator.internal-key":
   //   Get the user-key portion of the internal key at which the iteration
   //   stopped.
+  // Property "rocksdb.iterator.write-time":
+  //   Get the unix time of the best estimate of the write time of the entry.
+  //   The accuracy of the write time depends on settings like
+  //   preserve_internal_time_seconds. If this feature is disabled, this
+  //   property will always be empty.
+  //   The actual write time of the entry should be the same or newer than the
+  //   returned write time. So this property can be interpreted as the possible
+  //   oldest write time for the entry.  This property's main usage is to retain
+  //   write time info for tiered DB during resharding, so it doesn't
+  //   differentiate write time that is eligible for cold tier. For these
+  //   entries, the returned write time will be 0.
+  //   Returned as 64-bit (8 bytes) encoded value. Util function `DecodeU64Ts`
+  //   can be used to convert the encoded value to uint64_t type.
   virtual Status GetProperty(std::string prop_name, std::string* prop);
 
   virtual Slice timestamp() const {

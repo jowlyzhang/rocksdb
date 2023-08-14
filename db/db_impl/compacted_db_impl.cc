@@ -224,7 +224,8 @@ Status CompactedDBImpl::Init(const Options& options) {
   if (s.ok()) {
     cfd_ = static_cast_with_check<ColumnFamilyHandleImpl>(DefaultColumnFamily())
                ->cfd();
-    cfd_->InstallSuperVersion(&sv_context, &mutex_);
+    SeqnoToTimeMapping seqno_to_time_mapping = GetSeqnoToTimeMapping();
+    cfd_->InstallSuperVersion(&sv_context, &mutex_, std::move(seqno_to_time_mapping));
   }
   mutex_.Unlock();
   sv_context.Clean();

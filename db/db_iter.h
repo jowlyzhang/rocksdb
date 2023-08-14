@@ -119,7 +119,8 @@ class DBIter final : public Iterator {
          InternalIterator* iter, const Version* version, SequenceNumber s,
          bool arena_mode, uint64_t max_sequential_skip_in_iterations,
          ReadCallback* read_callback, DBImpl* db_impl, ColumnFamilyData* cfd,
-         bool expose_blob_index);
+         bool expose_blob_index,
+         const SeqnoToTimeMapping* seqno_to_time_mapping);
 
   // No copying allowed
   DBIter(const DBIter&) = delete;
@@ -341,6 +342,9 @@ class DBIter final : public Iterator {
   // uncommitted data in db as in WriteUnCommitted.
   SequenceNumber sequence_;
 
+  // saved_key_ always contain an internal key. The internal key is an
+  // artificial one right after invoking `SetSavedKeyTo*Target()` functions.
+  // Otherwise, it contains an internal key originated from `iter_`.
   IterKey saved_key_;
   // Reusable internal key data structure. This is only used inside one function
   // and should not be used across functions. Reusing this object can reduce
@@ -390,6 +394,9 @@ class DBIter final : public Iterator {
   // the stacked BlobDB implementation is used, false otherwise.
   bool expose_blob_index_;
   bool is_blob_;
+
+  const SeqnoToTimeMapping* seqno_to_time_mapping_;
+
   bool arena_mode_;
   const Env::IOActivity io_activity_;
   // List of operands for merge operator.
@@ -415,6 +422,7 @@ extern Iterator* NewDBIterator(
     const Version* version, const SequenceNumber& sequence,
     uint64_t max_sequential_skip_in_iterations, ReadCallback* read_callback,
     DBImpl* db_impl = nullptr, ColumnFamilyData* cfd = nullptr,
-    bool expose_blob_index = false);
+    bool expose_blob_index = false,
+    const SeqnoToTimeMapping* seqno_to_time_mapping = nullptr);
 
 }  // namespace ROCKSDB_NAMESPACE

@@ -3650,7 +3650,7 @@ Iterator* DBImpl::NewIterator(const ReadOptions& _read_options,
         env_, read_options, *cfd->ioptions(), sv->mutable_cf_options,
         cfd->user_comparator(), iter, sv->current, kMaxSequenceNumber,
         sv->mutable_cf_options.max_sequential_skip_in_iterations, read_callback,
-        this, cfd);
+        this, cfd, false /*expose_blob_index=*/, sv->GetSeqnoToTimeMapping());
   } else {
     // Note: no need to consider the special case of
     // last_seq_same_as_publish_seq_==false since NewIterator is overridden in
@@ -3730,9 +3730,10 @@ ArenaWrappedDBIter* DBImpl::NewIteratorImpl(
   // that they are likely to be in the same cache line and/or page.
   ArenaWrappedDBIter* db_iter = NewArenaWrappedDbIterator(
       env_, read_options, *cfd->ioptions(), sv->mutable_cf_options, sv->current,
+
       snapshot, sv->mutable_cf_options.max_sequential_skip_in_iterations,
       sv->version_number, read_callback, this, cfd, expose_blob_index,
-      allow_refresh);
+      allow_refresh, sv->GetSeqnoToTimeMapping());
 
   InternalIterator* internal_iter = NewInternalIterator(
       db_iter->GetReadOptions(), cfd, sv, db_iter->GetArena(), snapshot,
@@ -3812,7 +3813,8 @@ Status DBImpl::NewIterators(
           env_, read_options, *cfd->ioptions(), sv->mutable_cf_options,
           cfd->user_comparator(), iter, sv->current, kMaxSequenceNumber,
           sv->mutable_cf_options.max_sequential_skip_in_iterations,
-          read_callback, this, cfd));
+          read_callback, this, cfd, false /*expose_blob_index=*/,
+          sv->GetSeqnoToTimeMapping()));
     }
   } else {
     // Note: no need to consider the special case of

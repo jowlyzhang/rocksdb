@@ -44,7 +44,8 @@ DBIter::DBIter(Env* _env, const ReadOptions& read_options,
                const Version* version, SequenceNumber s, bool arena_mode,
                uint64_t max_sequential_skip_in_iterations,
                ReadCallback* read_callback, DBImpl* db_impl,
-               ColumnFamilyData* cfd, bool expose_blob_index)
+               ColumnFamilyData* cfd, bool expose_blob_index,
+               const SeqnoToTimeMapping* seqno_to_time_mapping)
     : prefix_extractor_(mutable_cf_options.prefix_extractor.get()),
       env_(_env),
       clock_(ioptions.clock),
@@ -77,6 +78,7 @@ DBIter::DBIter(Env* _env, const ReadOptions& read_options,
       verify_checksums_(read_options.verify_checksums),
       expose_blob_index_(expose_blob_index),
       is_blob_(false),
+      seqno_to_time_mapping_(seqno_to_time_mapping),
       arena_mode_(arena_mode),
       io_activity_(read_options.io_activity),
       db_impl_(db_impl),
@@ -113,6 +115,23 @@ Status DBIter::GetProperty(std::string prop_name, std::string* prop) {
     return Status::OK();
   } else if (prop_name == "rocksdb.iterator.internal-key") {
     *prop = saved_key_.GetUserKey().ToString();
+    return Status::OK();
+  } else if (prop_name == "rocksdb.iterator.write-time") {
+    // TODO(yuzhangyu): put the property name strings in a centralized place.
+    if (seqno_to_time_mapping_ == nullptr) {
+      return Status::InvalidArgument(
+          "rocksdb.iterator.write-time property is only available for DB that "
+          "enables time tracking capabilities.");
+    }
+    if (!valid_) {
+      return Status::InvalidArgument(
+          "rocksdb.iterator.write-time property is only valid when iterator is "
+          "positioned at a valid entry.");
+    }
+    uint64_t key_write_time = seqno_to_time_mapping_->GetProximalTimeBeforeSeqno(
+        GetInternalKeySeqno(saved_key_.GetInternalKey()));
+    PutFixed64(prop, key_write_time);
+
     return Status::OK();
   }
   return Status::InvalidArgument("Unidentified property.");
@@ -377,14 +396,13 @@ bool DBIter::FindNextUserEntryInternal(bool skipping_saved_key,
           case kTypeSingleDeletion:
             // Arrange to skip all upcoming entries for this key since
             // they are hidden by this deletion.
+            saved_key_.SetInternalKey(
+                iter_.key(),
+                !pin_thru_lifetime_ || !iter_.iter()->IsKeyPinned() /* copy */);
             if (timestamp_lb_) {
-              saved_key_.SetInternalKey(ikey_);
               valid_ = true;
               return true;
             } else {
-              saved_key_.SetUserKey(
-                  ikey_.user_key, !pin_thru_lifetime_ ||
-                                      !iter_.iter()->IsKeyPinned() /* copy */);
               skipping_saved_key = true;
               PERF_COUNTER_ADD(internal_delete_skipped_count, 1);
             }
@@ -397,13 +415,9 @@ bool DBIter::FindNextUserEntryInternal(bool skipping_saved_key,
               valid_ = false;
               return false;
             }
-            if (timestamp_lb_) {
-              saved_key_.SetInternalKey(ikey_);
-            } else {
-              saved_key_.SetUserKey(
-                  ikey_.user_key, !pin_thru_lifetime_ ||
-                                      !iter_.iter()->IsKeyPinned() /* copy */);
-            }
+            saved_key_.SetInternalKey(
+                iter_.key(),
+                !pin_thru_lifetime_ || !iter_.iter()->IsKeyPinned() /* copy */);
 
             if (ikey_.type == kTypeBlobIndex) {
               if (!SetBlobValueIfNeeded(ikey_.user_key, iter_.value())) {
@@ -430,8 +444,8 @@ bool DBIter::FindNextUserEntryInternal(bool skipping_saved_key,
               valid_ = false;
               return false;
             }
-            saved_key_.SetUserKey(
-                ikey_.user_key,
+            saved_key_.SetInternalKey(
+                iter_.key(),
                 !pin_thru_lifetime_ || !iter_.iter()->IsKeyPinned() /* copy */);
             // By now, we are sure the current ikey is going to yield a value
             current_entry_is_merged_ = true;
@@ -459,8 +473,8 @@ bool DBIter::FindNextUserEntryInternal(bool skipping_saved_key,
       if (cmp == 0 || (skipping_saved_key && cmp < 0)) {
         num_skipped++;
       } else {
-        saved_key_.SetUserKey(
-            ikey_.user_key,
+        saved_key_.SetInternalKey(
+            iter_.key(),
             !iter_.iter()->IsKeyPinned() || !pin_thru_lifetime_ /* copy */);
         skipping_saved_key = false;
         num_skipped = 0;
@@ -780,9 +794,8 @@ bool DBIter::ReverseToBackward() {
 
 void DBIter::PrevInternal(const Slice* prefix) {
   while (iter_.Valid()) {
-    saved_key_.SetUserKey(
-        ExtractUserKey(iter_.key()),
-        !iter_.iter()->IsKeyPinned() || !pin_thru_lifetime_ /* copy */);
+    saved_key_.SetInternalKey(iter_.key(), !iter_.iter()->IsKeyPinned() ||
+                                               !pin_thru_lifetime_ /* copy */);
 
     assert(prefix == nullptr || prefix_extractor_ != nullptr);
     if (prefix != nullptr &&
@@ -919,8 +932,8 @@ bool DBIter::FindValueForCurrentKey() {
       saved_key_.SetInternalKey(ikey);
     } else if (user_comparator_.Compare(ikey.user_key,
                                         saved_key_.GetUserKey()) < 0) {
-      saved_key_.SetUserKey(
-          ikey.user_key,
+      saved_key_.SetInternalKey(
+          iter_.key(),
           !pin_thru_lifetime_ || !iter_.iter()->IsKeyPinned() /* copy */);
     }
 
@@ -1640,9 +1653,8 @@ void DBIter::SeekToFirst() {
 
   RecordTick(statistics_, NUMBER_DB_SEEK);
   if (iter_.Valid()) {
-    saved_key_.SetUserKey(
-        ExtractUserKey(iter_.key()),
-        !iter_.iter()->IsKeyPinned() || !pin_thru_lifetime_ /* copy */);
+    saved_key_.SetInternalKey(iter_.key(), !iter_.iter()->IsKeyPinned() ||
+                                               !pin_thru_lifetime_ /* copy */);
     FindNextUserEntry(false /* not skipping saved_key */,
                       nullptr /* no prefix check */);
     if (statistics_ != nullptr) {
@@ -1724,12 +1736,13 @@ Iterator* NewDBIterator(Env* env, const ReadOptions& read_options,
                         const SequenceNumber& sequence,
                         uint64_t max_sequential_skip_in_iterations,
                         ReadCallback* read_callback, DBImpl* db_impl,
-                        ColumnFamilyData* cfd, bool expose_blob_index) {
+                        ColumnFamilyData* cfd, bool expose_blob_index,
+                        const SeqnoToTimeMapping* seqno_to_time_mapping) {
   DBIter* db_iter =
       new DBIter(env, read_options, ioptions, mutable_cf_options,
                  user_key_comparator, internal_iter, version, sequence, false,
                  max_sequential_skip_in_iterations, read_callback, db_impl, cfd,
-                 expose_blob_index);
+                 expose_blob_index, seqno_to_time_mapping);
   return db_iter;
 }
 

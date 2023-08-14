@@ -177,7 +177,9 @@ Iterator* DBImplReadOnly::NewIterator(const ReadOptions& _read_options,
       env_, read_options, *cfd->ioptions(), super_version->mutable_cf_options,
       super_version->current, read_seq,
       super_version->mutable_cf_options.max_sequential_skip_in_iterations,
-      super_version->version_number, read_callback);
+      super_version->version_number, read_callback, nullptr /*db_impl=*/,
+      nullptr /*cfd=*/, false /*expose_blob_index*/, true /*allow_refresh*/,
+      super_version->GetSeqnoToTimeMapping());
   auto internal_iter = NewInternalIterator(
       db_iter->GetReadOptions(), cfd, super_version, db_iter->GetArena(),
       read_seq, /* allow_unprepared_value */ true, db_iter);
@@ -245,7 +247,9 @@ Status DBImplReadOnly::NewIterators(
         env_, read_options, *cfd->ioptions(), sv->mutable_cf_options,
         sv->current, read_seq,
         sv->mutable_cf_options.max_sequential_skip_in_iterations,
-        sv->version_number, read_callback);
+        sv->version_number, read_callback, nullptr /*db_impl=*/,
+        nullptr /*cfd=*/, false /*expose_blob_index*/, true /*allow_refresh*/,
+        sv->GetSeqnoToTimeMapping());
     auto* internal_iter = NewInternalIterator(
         db_iter->GetReadOptions(), cfd, sv, db_iter->GetArena(), read_seq,
         /* allow_unprepared_value */ true, db_iter);
@@ -354,7 +358,8 @@ Status DBImplReadOnly::OpenForReadOnlyWithoutCheck(
   if (s.ok()) {
     for (auto cfd : *impl->versions_->GetColumnFamilySet()) {
       sv_context.NewSuperVersion();
-      cfd->InstallSuperVersion(&sv_context, &impl->mutex_);
+      SeqnoToTimeMapping seqno_to_time_mapping = impl->GetSeqnoToTimeMapping();
+      cfd->InstallSuperVersion(&sv_context, &impl->mutex_, std::move(seqno_to_time_mapping));
     }
   }
   impl->mutex_.Unlock();

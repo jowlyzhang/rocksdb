@@ -44,13 +44,14 @@ void ArenaWrappedDBIter::Init(
     const MutableCFOptions& mutable_cf_options, const Version* version,
     const SequenceNumber& sequence, uint64_t max_sequential_skip_in_iteration,
     uint64_t version_number, ReadCallback* read_callback, DBImpl* db_impl,
-    ColumnFamilyData* cfd, bool expose_blob_index, bool allow_refresh) {
+    ColumnFamilyData* cfd, bool expose_blob_index, bool allow_refresh,
+    const SeqnoToTimeMapping* seqno_to_time_mapping) {
   auto mem = arena_.AllocateAligned(sizeof(DBIter));
-  db_iter_ =
-      new (mem) DBIter(env, read_options, ioptions, mutable_cf_options,
-                       ioptions.user_comparator, /* iter */ nullptr, version,
-                       sequence, true, max_sequential_skip_in_iteration,
-                       read_callback, db_impl, cfd, expose_blob_index);
+  db_iter_ = new (mem)
+      DBIter(env, read_options, ioptions, mutable_cf_options,
+             ioptions.user_comparator, /* iter */ nullptr, version, sequence,
+             true, max_sequential_skip_in_iteration, read_callback, db_impl,
+             cfd, expose_blob_index, seqno_to_time_mapping);
   sv_number_ = version_number;
   read_options_ = read_options;
   allow_refresh_ = allow_refresh;
@@ -95,7 +96,7 @@ Status ArenaWrappedDBIter::Refresh(const Snapshot* snapshot) {
          sv->current, read_seq,
          sv->mutable_cf_options.max_sequential_skip_in_iterations,
          sv->version_number, read_callback_, db_impl_, cfd_, expose_blob_index_,
-         allow_refresh_);
+         allow_refresh_, sv->GetSeqnoToTimeMapping());
 
     InternalIterator* internal_iter = db_impl_->NewInternalIterator(
         read_options_, cfd_, sv, &arena_, read_seq,
@@ -164,11 +165,13 @@ ArenaWrappedDBIter* NewArenaWrappedDbIterator(
     const MutableCFOptions& mutable_cf_options, const Version* version,
     const SequenceNumber& sequence, uint64_t max_sequential_skip_in_iterations,
     uint64_t version_number, ReadCallback* read_callback, DBImpl* db_impl,
-    ColumnFamilyData* cfd, bool expose_blob_index, bool allow_refresh) {
+    ColumnFamilyData* cfd, bool expose_blob_index, bool allow_refresh,
+    const SeqnoToTimeMapping* seqno_to_time_mapping) {
   ArenaWrappedDBIter* iter = new ArenaWrappedDBIter();
   iter->Init(env, read_options, ioptions, mutable_cf_options, version, sequence,
              max_sequential_skip_in_iterations, version_number, read_callback,
-             db_impl, cfd, expose_blob_index, allow_refresh);
+             db_impl, cfd, expose_blob_index, allow_refresh,
+             seqno_to_time_mapping);
   if (db_impl != nullptr && cfd != nullptr && allow_refresh) {
     iter->StoreRefreshInfo(db_impl, cfd, read_callback, expose_blob_index);
   }

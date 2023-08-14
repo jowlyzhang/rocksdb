@@ -471,12 +471,14 @@ void SuperVersion::Cleanup() {
 }
 
 void SuperVersion::Init(ColumnFamilyData* new_cfd, MemTable* new_mem,
-                        MemTableListVersion* new_imm, Version* new_current) {
+                        MemTableListVersion* new_imm, Version* new_current,
+                        SeqnoToTimeMapping&& new_seqno_to_time_mapping) {
   cfd = new_cfd;
   mem = new_mem;
   imm = new_imm;
   current = new_current;
   full_history_ts_low = cfd->GetFullHistoryTsLow();
+  seqno_to_time_mapping = std::move(new_seqno_to_time_mapping);
   cfd->Ref();
   mem->Ref();
   imm->Ref();
@@ -1271,17 +1273,19 @@ bool ColumnFamilyData::ReturnThreadLocalSuperVersion(SuperVersion* sv) {
 }
 
 void ColumnFamilyData::InstallSuperVersion(SuperVersionContext* sv_context,
-                                           InstrumentedMutex* db_mutex) {
+                                           InstrumentedMutex* db_mutex,
+                                           SeqnoToTimeMapping&& seqno_to_time_mapping) {
   db_mutex->AssertHeld();
-  return InstallSuperVersion(sv_context, mutable_cf_options_);
+  return InstallSuperVersion(sv_context, mutable_cf_options_, std::move(seqno_to_time_mapping));
 }
 
 void ColumnFamilyData::InstallSuperVersion(
     SuperVersionContext* sv_context,
-    const MutableCFOptions& mutable_cf_options) {
+    const MutableCFOptions& mutable_cf_options,
+    SeqnoToTimeMapping&& seqno_to_time_mapping) {
   SuperVersion* new_superversion = sv_context->new_superversion.release();
   new_superversion->mutable_cf_options = mutable_cf_options;
-  new_superversion->Init(this, mem_, imm_.current(), current_);
+  new_superversion->Init(this, mem_, imm_.current(), current_, std::move(seqno_to_time_mapping));
   SuperVersion* old_superversion = super_version_;
   super_version_ = new_superversion;
   if (old_superversion == nullptr || old_superversion->current != current() ||

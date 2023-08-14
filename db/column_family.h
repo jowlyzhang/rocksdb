@@ -218,6 +218,10 @@ struct SuperVersion {
   // enable UDT feature, this is an empty string.
   std::string full_history_ts_low;
 
+  // TODO(yuzhangyu): add comment,
+  // could be an empty object
+  SeqnoToTimeMapping seqno_to_time_mapping;
+
   // should be called outside the mutex
   SuperVersion() = default;
   ~SuperVersion();
@@ -232,7 +236,14 @@ struct SuperVersion {
   // objects needs to be done in the mutex
   void Cleanup();
   void Init(ColumnFamilyData* new_cfd, MemTable* new_mem,
-            MemTableListVersion* new_imm, Version* new_current);
+            MemTableListVersion* new_imm, Version* new_current, SeqnoToTimeMapping&& new_seqno_to_time_mapping);
+
+  const SeqnoToTimeMapping* GetSeqnoToTimeMapping() {
+    if (seqno_to_time_mapping.GetCapacity() == 0) {
+      return nullptr;
+    }
+    return &seqno_to_time_mapping;
+  }
 
   // The value of dummy is not actually used. kSVInUse takes its address as a
   // mark in the thread local storage to indicate the SuperVersion is in use
@@ -456,9 +467,11 @@ class ColumnFamilyData {
   // the clients to allocate SuperVersion outside of mutex.
   // IMPORTANT: Only call this from DBImpl::InstallSuperVersion()
   void InstallSuperVersion(SuperVersionContext* sv_context,
-                           const MutableCFOptions& mutable_cf_options);
+                           const MutableCFOptions& mutable_cf_options,
+                           SeqnoToTimeMapping&& new_seqno_to_time_mapping);
   void InstallSuperVersion(SuperVersionContext* sv_context,
-                           InstrumentedMutex* db_mutex);
+                           InstrumentedMutex* db_mutex,
+                           SeqnoToTimeMapping&& new_seqno_to_time_mapping);
 
   void ResetThreadLocalSuperVersions();
 

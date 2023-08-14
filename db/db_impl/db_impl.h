@@ -1215,6 +1215,11 @@ class DBImpl : public DB {
   // record current sequence number to time mapping
   void RecordSeqnoToTimeMapping();
 
+  const SeqnoToTimeMapping& GetSeqnoToTimeMapping() const {
+    mutex_.AssertHeld();
+    return seqno_to_time_mapping_;
+  }
+
   // Interface to block and signal the DB in case of stalling writes by
   // WriteBufferManager. Each DBImpl object contains ptr to WBMStallInterface.
   // When DB needs to be blocked or signalled by WriteBufferManager,

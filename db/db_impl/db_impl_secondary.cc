@@ -535,7 +535,7 @@ ArenaWrappedDBIter* DBImplSecondary::NewIteratorImpl(
       super_version->current, snapshot,
       super_version->mutable_cf_options.max_sequential_skip_in_iterations,
       super_version->version_number, read_callback, this, cfd,
-      expose_blob_index, allow_refresh);
+      expose_blob_index, allow_refresh, super_version->GetSeqnoToTimeMapping());
   auto internal_iter = NewInternalIterator(
       db_iter->GetReadOptions(), cfd, super_version, db_iter->GetArena(),
       snapshot, /* allow_unprepared_value */ true, db_iter);
@@ -710,7 +710,8 @@ Status DBImplSecondary::TryCatchUpWithPrimary() {
         cfd->imm()->RemoveOldMemTables(cfd->GetLogNumber(),
                                        &job_context.memtables_to_free);
         auto& sv_context = job_context.superversion_contexts.back();
-        cfd->InstallSuperVersion(&sv_context, &mutex_);
+        SeqnoToTimeMapping seqno_to_time_mapping = GetSeqnoToTimeMapping();
+        cfd->InstallSuperVersion(&sv_context, &mutex_, std::move(seqno_to_time_mapping));
         sv_context.NewSuperVersion();
       }
     }
@@ -816,7 +817,9 @@ Status DB::OpenAsSecondary(
   if (s.ok()) {
     for (auto cfd : *impl->versions_->GetColumnFamilySet()) {
       sv_context.NewSuperVersion();
-      cfd->InstallSuperVersion(&sv_context, &impl->mutex_);
+      SeqnoToTimeMapping seqno_to_time_mapping = impl->GetSeqnoToTimeMapping();
+      cfd->InstallSuperVersion(&sv_context, &impl->mutex_,
+                               std::move(seqno_to_time_mapping));
     }
   }
   impl->mutex_.Unlock();

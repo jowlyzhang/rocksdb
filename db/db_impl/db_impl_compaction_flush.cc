@@ -4176,7 +4176,13 @@ void DBImpl::InstallSuperVersionAndScheduleWork(
   if (UNLIKELY(sv_context->new_superversion == nullptr)) {
     sv_context->NewSuperVersion();
   }
-  cfd->InstallSuperVersion(sv_context, mutable_cf_options);
+  // TODO(yuzhangyu): collect and merge seqno to time recordings from all SST
+  // files into seqno_time_mapping_ at db open time. Maybe record the latest
+  // recorded time for the mapping in manifest to decide if it's worth doing
+  // this merging. This is especially important for secondary and read only db
+  // since they won't be doing meaningful seqno to time recordings themselves.
+  SeqnoToTimeMapping seqno_to_time_mapping = GetSeqnoToTimeMapping();
+  cfd->InstallSuperVersion(sv_context, mutable_cf_options, std::move(seqno_to_time_mapping));
 
   // There may be a small data race here. The snapshot tricking bottommost
   // compaction may already be released here. But assuming there will always be
