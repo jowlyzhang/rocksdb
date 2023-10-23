@@ -186,7 +186,10 @@ bool RandomTransactionInserter::DoInsert(DB* db, Transaction* txn,
           unexpected_error = true;
         }
       } else {
-        batch.Put(key, sum);
+        s = batch.Put(key, sum);
+        if (!s.ok()) {
+          break;
+        }
       }
       bytes_inserted_ += key.size() + sum.size();
     }
