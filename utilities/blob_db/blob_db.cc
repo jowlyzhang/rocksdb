@@ -55,7 +55,9 @@ Status BlobDB::Open(const DBOptions& db_options,
   } else {
     if (!handles->empty()) {
       for (ColumnFamilyHandle* cfh : *handles) {
-        blob_db_impl->DestroyColumnFamilyHandle(cfh);
+        // Non-OK status is only returned for attempting to delete handle for
+        // the default column family. We can ignore this error.
+        blob_db_impl->DestroyColumnFamilyHandle(cfh).PermitUncheckedError();
       }
 
       handles->clear();

@@ -1000,7 +1000,10 @@ class BlobDBImpl::BlobInserter : public WriteBatch::Handler {
     return Status::NotSupported("Not supported operation in blob db.");
   }
 
-  void LogData(const Slice& blob) override { batch_.PutLogData(blob); }
+  void LogData(const Slice& blob) override {
+    // TODO: maybe handle the status error
+    batch_.PutLogData(blob).PermitUncheckedError();
+  }
 };
 
 Status BlobDBImpl::Write(const WriteOptions& options, WriteBatch* updates) {
