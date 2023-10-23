@@ -483,7 +483,8 @@ SstFileManager* NewSstFileManager(Env* env, std::shared_ptr<FileSystem> fs,
     if (s.ok()) {
       for (const std::string& trash_file : files_in_trash) {
         std::string path_in_trash = trash_dir + "/" + trash_file;
-        res->OnAddFile(path_in_trash);
+        // TODO: maybe handle file adding status
+        res->OnAddFile(path_in_trash).PermitUncheckedError();
         Status file_delete =
             res->ScheduleFileDeletion(path_in_trash, trash_dir);
         if (s.ok() && !file_delete.ok()) {
