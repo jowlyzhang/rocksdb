@@ -57,7 +57,7 @@ Status Truncate(Env* env, const std::string& filename, uint64_t length) {
       } else {
         fprintf(stderr, "Cannot rename file %s to %s: %s\n", tmp_name.c_str(),
                 filename.c_str(), s.ToString().c_str());
-        env->DeleteFile(tmp_name);
+        env->DeleteFile(tmp_name).PermitUncheckedError();
       }
     }
   }

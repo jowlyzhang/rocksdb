@@ -398,7 +398,13 @@ Status CheckpointImpl::ExportColumnFamily(
     std::vector<std::string> subchildren;
     const auto cleanup_dir =
         moved_to_user_specified_dir ? export_dir : tmp_export_dir;
-    db_->GetEnv()->GetChildren(cleanup_dir, &subchildren);
+    s = db_->GetEnv()->GetChildren(cleanup_dir, &subchildren);
+    if (!s.ok()) {
+      ROCKS_LOG_WARN(db_options.info_log,
+                     "Cleanup encountered error when getting files in "
+                     "directory %s, error: %s",
+                     cleanup_dir.c_str(), s.ToString().c_str());
+    }
     for (const auto& subchild : subchildren) {
       const auto subchild_path = cleanup_dir + "/" + subchild;
       const auto status = db_->GetEnv()->DeleteFile(subchild_path);
