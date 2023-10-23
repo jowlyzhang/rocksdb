@@ -32,7 +32,7 @@
 
 namespace ROCKSDB_NAMESPACE {
 
-class Status {
+class [[nodiscard]] Status {
  public:
   // Create a success status.
   Status()
