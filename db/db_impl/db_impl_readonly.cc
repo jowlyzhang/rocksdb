@@ -73,7 +73,8 @@ Status DBImplReadOnly::GetImpl(const ReadOptions& read_options,
   if (tracer_) {
     InstrumentedMutexLock lock(&trace_mutex_);
     if (tracer_) {
-      tracer_->Get(get_impl_options.column_family, key);
+      // TODO: maybe handle the tracing status
+      tracer_->Get(get_impl_options.column_family, key).PermitUncheckedError();
     }
   }
 
