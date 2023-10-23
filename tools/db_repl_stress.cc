@@ -77,14 +77,14 @@ int main(int argc, const char** argv) {
 
   Env* env = Env::Default();
   std::string default_db_path;
-  env->GetTestDirectory(&default_db_path);
+  env->GetTestDirectory(&default_db_path).PermitUncheckedError();
   default_db_path += "db_repl_stress";
   Options options;
   options.create_if_missing = true;
   options.WAL_ttl_seconds = FLAGS_wal_ttl_seconds;
   options.WAL_size_limit_MB = FLAGS_wal_size_limit_MB;
   DB* db;
-  DestroyDB(default_db_path, options);
+  DestroyDB(default_db_path, options).PermitUncheckedError();
 
   Status s = DB::Open(options, default_db_path, &db);
 

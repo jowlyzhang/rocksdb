@@ -665,7 +665,7 @@ Status FileExpectedStateManager::Restore(DB* db) {
         break;
       }
       std::unique_ptr<TraceRecordResult> res;
-      record->Accept(handler.get(), &res);
+      record->Accept(handler.get(), &res).PermitUncheckedError();
     }
     if (s.IsCorruption() && handler->IsDone()) {
       // There could be a corruption reading the tail record of the trace due to

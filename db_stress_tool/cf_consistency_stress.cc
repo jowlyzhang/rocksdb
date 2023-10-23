@@ -42,11 +42,12 @@ class CfConsistencyStressTest : public StressTest {
 
       if (FLAGS_use_put_entity_one_in > 0 &&
           (value_base % FLAGS_use_put_entity_one_in) == 0) {
-        batch.PutEntity(cfh, k, GenerateWideColumns(value_base, v));
+        batch.PutEntity(cfh, k, GenerateWideColumns(value_base, v))
+            .PermitUncheckedError();
       } else if (FLAGS_use_merge) {
-        batch.Merge(cfh, k, v);
+        batch.Merge(cfh, k, v).PermitUncheckedError();
       } else {
-        batch.Put(cfh, k, v);
+        batch.Put(cfh, k, v).PermitUncheckedError();
       }
     }
 
@@ -71,7 +72,7 @@ class CfConsistencyStressTest : public StressTest {
     WriteBatch batch;
     for (auto cf : rand_column_families) {
       ColumnFamilyHandle* cfh = column_families_[cf];
-      batch.Delete(cfh, key);
+      batch.Delete(cfh, key).PermitUncheckedError();
     }
     Status s = db_->Write(write_opts, &batch);
     if (!s.ok()) {
@@ -100,7 +101,7 @@ class CfConsistencyStressTest : public StressTest {
     WriteBatch batch;
     for (auto cf : rand_column_families) {
       ColumnFamilyHandle* cfh = column_families_[rand_column_families[cf]];
-      batch.DeleteRange(cfh, key, end_key);
+      batch.DeleteRange(cfh, key, end_key).PermitUncheckedError();
     }
     Status s = db_->Write(write_opts, &batch);
     if (!s.ok()) {

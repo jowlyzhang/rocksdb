@@ -116,15 +116,15 @@ void TableReaderBenchmark(Options& opts, EnvOptions& env_options,
       if (!through_db) {
         tb->Add(key, key);
       } else {
-        db->Put(wo, key, key);
+        db->Put(wo, key, key).PermitUncheckedError();
       }
     }
   }
   if (!through_db) {
-    tb->Finish();
+    tb->Finish().PermitUncheckedError();
     file_writer->Close();
   } else {
-    db->Flush(FlushOptions());
+    db->Flush(FlushOptions()).PermitUncheckedError();
   }
 
   std::unique_ptr<TableReader> table_reader;
@@ -252,11 +252,11 @@ void TableReaderBenchmark(Options& opts, EnvOptions& env_options,
       measured_by_nanosecond ? "nanosecond" : "microsecond",
       hist.ToString().c_str());
   if (!through_db) {
-    env->DeleteFile(file_name);
+    env->DeleteFile(file_name).PermitUncheckedError();
   } else {
     delete db;
     db = nullptr;
-    DestroyDB(dbname, opts);
+    DestroyDB(dbname, opts).PermitUncheckedError();
   }
 }
 }  // namespace

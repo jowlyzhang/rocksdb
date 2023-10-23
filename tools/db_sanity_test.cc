@@ -26,7 +26,7 @@ class SanityTest {
  public:
   explicit SanityTest(const std::string& path)
       : env_(Env::Default()), path_(path) {
-    env_->CreateDirIfMissing(path);
+    env_->CreateDirIfMissing(path).PermitUncheckedError();
   }
   virtual ~SanityTest() {}
 

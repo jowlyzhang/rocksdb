@@ -221,7 +221,7 @@ int db_stress_tool(int argc, char** argv) {
   // Choose a location for the test database if none given with --db=<path>
   if (FLAGS_db.empty()) {
     std::string default_db_path;
-    db_stress_env->GetTestDirectory(&default_db_path);
+    db_stress_env->GetTestDirectory(&default_db_path).PermitUncheckedError();
     default_db_path += "/dbstress";
     FLAGS_db = default_db_path;
   }
@@ -229,7 +229,8 @@ int db_stress_tool(int argc, char** argv) {
   if ((FLAGS_test_secondary || FLAGS_continuous_verification_interval > 0) &&
       FLAGS_secondaries_base.empty()) {
     std::string default_secondaries_path;
-    db_stress_env->GetTestDirectory(&default_secondaries_path);
+    db_stress_env->GetTestDirectory(&default_secondaries_path)
+        .PermitUncheckedError();
     default_secondaries_path += "/dbstress_secondaries";
     s = db_stress_env->CreateDirIfMissing(default_secondaries_path);
     if (!s.ok()) {

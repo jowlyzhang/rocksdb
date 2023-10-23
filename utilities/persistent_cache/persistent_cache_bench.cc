@@ -140,7 +140,7 @@ class CacheTierBenchmark {
     PrintStats(sec);
     // Close the cache
     cache_->TEST_Flush();
-    cache_->Close();
+    cache_->Close().PermitUncheckedError();
   }
 
  private:

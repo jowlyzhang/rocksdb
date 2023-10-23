@@ -67,10 +67,11 @@ StressTest::StressTest()
       is_db_stopped_(false) {
   if (FLAGS_destroy_db_initially) {
     std::vector<std::string> files;
-    db_stress_env->GetChildren(FLAGS_db, &files);
+    db_stress_env->GetChildren(FLAGS_db, &files).PermitUncheckedError();
     for (unsigned int i = 0; i < files.size(); i++) {
       if (Slice(files[i]).starts_with("heap-")) {
-        db_stress_env->DeleteFile(FLAGS_db + "/" + files[i]);
+        db_stress_env->DeleteFile(FLAGS_db + "/" + files[i])
+            .PermitUncheckedError();
       }
     }
 
@@ -881,7 +882,7 @@ void StressTest::OperateDb(ThreadState* thread) {
 
       // Change Options
       if (thread->rand.OneInOpt(FLAGS_set_options_one_in)) {
-        SetOptions(thread);
+        SetOptions(thread).PermitUncheckedError();
       }
 
       if (thread->rand.OneInOpt(FLAGS_set_in_place_one_in)) {
@@ -1026,7 +1027,8 @@ void StressTest::OperateDb(ThreadState* thread) {
         uint64_t total_size = 0;
         if (FLAGS_backup_max_size > 0) {
           std::vector<FileAttributes> files;
-          db_stress_env->GetChildrenFileAttributes(FLAGS_db, &files);
+          db_stress_env->GetChildrenFileAttributes(FLAGS_db, &files)
+              .PermitUncheckedError();
           for (auto& file : files) {
             total_size += file.size_bytes;
           }
@@ -1110,7 +1112,9 @@ void StressTest::OperateDb(ThreadState* thread) {
         } else {
           ThreadStatusUtil::SetThreadOperation(
               ThreadStatus::OperationType::OP_GET);
-          TestGet(thread, read_opts, rand_column_families, rand_keys);
+          // TODO:should these Test* methods not returning status?
+          TestGet(thread, read_opts, rand_column_families, rand_keys)
+              .PermitUncheckedError();
         }
         ThreadStatusUtil::ResetThreadStatus();
       } else if (prob_op < prefix_bound) {
@@ -1120,20 +1124,24 @@ void StressTest::OperateDb(ThreadState* thread) {
         // (8 - FLAGS_prefix_size) bytes besides the prefix. So there will
         // be 2 ^ ((8 - FLAGS_prefix_size) * 8) possible keys with the same
         // prefix
-        TestPrefixScan(thread, read_opts, rand_column_families, rand_keys);
+        TestPrefixScan(thread, read_opts, rand_column_families, rand_keys)
+            .PermitUncheckedError();
       } else if (prob_op < write_bound) {
         assert(prefix_bound <= prob_op);
         // OPERATION write
         TestPut(thread, write_opts, read_opts, rand_column_families, rand_keys,
-                value);
+                value)
+            .PermitUncheckedError();
       } else if (prob_op < del_bound) {
         assert(write_bound <= prob_op);
         // OPERATION delete
-        TestDelete(thread, write_opts, rand_column_families, rand_keys);
+        TestDelete(thread, write_opts, rand_column_families, rand_keys)
+            .PermitUncheckedError();
       } else if (prob_op < delrange_bound) {
         assert(del_bound <= prob_op);
         // OPERATION delete range
-        TestDeleteRange(thread, write_opts, rand_column_families, rand_keys);
+        TestDeleteRange(thread, write_opts, rand_column_families, rand_keys)
+            .PermitUncheckedError();
       } else if (prob_op < iterate_bound) {
         assert(delrange_bound <= prob_op);
         // OPERATION iterate
@@ -1144,7 +1152,8 @@ void StressTest::OperateDb(ThreadState* thread) {
           ThreadStatusUtil::SetThreadOperation(
               ThreadStatus::OperationType::OP_DBITERATOR);
           TestIterateAgainstExpected(thread, read_opts, rand_column_families,
-                                     rand_keys);
+                                     rand_keys)
+              .PermitUncheckedError();
           ThreadStatusUtil::ResetThreadStatus();
         } else {
           int num_seeks = static_cast<int>(std::min(
@@ -1157,12 +1166,14 @@ void StressTest::OperateDb(ThreadState* thread) {
           ThreadStatusUtil::SetEnableTracking(FLAGS_enable_thread_tracking);
           ThreadStatusUtil::SetThreadOperation(
               ThreadStatus::OperationType::OP_DBITERATOR);
-          TestIterate(thread, read_opts, rand_column_families, rand_keys);
+          TestIterate(thread, read_opts, rand_column_families, rand_keys)
+              .PermitUncheckedError();
           ThreadStatusUtil::ResetThreadStatus();
         }
       } else {
         assert(iterate_bound <= prob_op);
-        TestCustomOperations(thread, rand_column_families);
+        TestCustomOperations(thread, rand_column_families)
+            .PermitUncheckedError();
       }
       thread->stats.FinishedSingleOp();
     }
@@ -1846,7 +1857,7 @@ Status StressTest::TestBackupRestore(
   }
   if (restored_db != nullptr) {
     for (auto* cf_handle : restored_cf_handles) {
-      restored_db->DestroyColumnFamilyHandle(cf_handle);
+      restored_db->DestroyColumnFamilyHandle(cf_handle).PermitUncheckedError();
     }
     delete restored_db;
     restored_db = nullptr;
@@ -1951,7 +1962,7 @@ Status StressTest::TestCheckpoint(ThreadState* thread,
   // Avoid delayed deletion so whole directory can be deleted
   tmp_opts.sst_file_manager.reset();
 
-  DestroyDB(checkpoint_dir, tmp_opts);
+  DestroyDB(checkpoint_dir, tmp_opts).PermitUncheckedError();
 
   Checkpoint* checkpoint = nullptr;
   Status s = Checkpoint::Create(db_, &checkpoint);
@@ -2051,7 +2062,7 @@ Status StressTest::TestCheckpoint(ThreadState* thread,
               s.ToString().c_str());
     }
   } else {
-    DestroyDB(checkpoint_dir, tmp_opts);
+    DestroyDB(checkpoint_dir, tmp_opts).PermitUncheckedError();
   }
   return s;
 }

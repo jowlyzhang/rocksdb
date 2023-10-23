@@ -1901,7 +1901,7 @@ int trace_analyzer_tool(int argc, char** argv) {
   s = analyzer->MakeStatistics();
   if (!s.ok()) {
     fprintf(stderr, "%s\n", s.getState());
-    analyzer->EndProcessing();
+    analyzer->EndProcessing().PermitUncheckedError();
     fprintf(stderr, "Cannot make the statistics\n");
     exit(1);
   }
@@ -1910,7 +1910,7 @@ int trace_analyzer_tool(int argc, char** argv) {
   if (!s.ok()) {
     fprintf(stderr, "%s\n", s.getState());
     fprintf(stderr, "Cannot re-process the trace for more statistics\n");
-    analyzer->EndProcessing();
+    analyzer->EndProcessing().PermitUncheckedError();
     exit(1);
   }
 

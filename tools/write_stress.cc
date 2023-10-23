@@ -120,14 +120,14 @@ class WriteStress {
     // Choose a location for the test database if none given with --db=<path>
     if (FLAGS_db.empty()) {
       std::string default_db_path;
-      Env::Default()->GetTestDirectory(&default_db_path);
+      Env::Default()->GetTestDirectory(&default_db_path).PermitUncheckedError();
       default_db_path += "/write_stress";
       FLAGS_db = default_db_path;
     }
 
     Options options;
     if (FLAGS_destroy_db) {
-      DestroyDB(FLAGS_db, options);  // ignore
+      DestroyDB(FLAGS_db, options).PermitUncheckedError();  // ignore
     }
 
     // make the LSM tree deep, so that we have many concurrent flushes and
@@ -244,7 +244,7 @@ class WriteStress {
     threads_.clear();
 
     // let's see if we leaked some files
-    db_->PauseBackgroundWork();
+    db_->PauseBackgroundWork().PermitUncheckedError();
     std::vector<LiveFileMetaData> metadata;
     db_->GetLiveFilesMetaData(&metadata);
     std::set<uint64_t> sst_file_numbers;
@@ -260,7 +260,7 @@ class WriteStress {
     }
 
     std::vector<std::string> children;
-    Env::Default()->GetChildren(FLAGS_db, &children);
+    Env::Default()->GetChildren(FLAGS_db, &children).PermitUncheckedError();
     for (const auto& child : children) {
       uint64_t number;
       FileType type;
@@ -277,7 +277,7 @@ class WriteStress {
         }
       }
     }
-    db_->ContinueBackgroundWork();
+    db_->ContinueBackgroundWork().PermitUncheckedError();
 
     return 0;
   }

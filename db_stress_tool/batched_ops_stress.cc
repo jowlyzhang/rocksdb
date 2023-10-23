@@ -54,11 +54,12 @@ class BatchedOpsStressTest : public StressTest {
 
       if (FLAGS_use_put_entity_one_in > 0 &&
           (value_base % FLAGS_use_put_entity_one_in) == 0) {
-        batch.PutEntity(cfh, k, GenerateWideColumns(value_base, v));
+        batch.PutEntity(cfh, k, GenerateWideColumns(value_base, v))
+            .PermitUncheckedError();
       } else if (FLAGS_use_merge) {
-        batch.Merge(cfh, k, v);
+        batch.Merge(cfh, k, v).PermitUncheckedError();
       } else {
-        batch.Put(cfh, k, v);
+        batch.Put(cfh, k, v).PermitUncheckedError();
       }
     }
 
@@ -90,7 +91,7 @@ class BatchedOpsStressTest : public StressTest {
     std::string key_str = Key(rand_keys[0]);
     for (int i = 0; i < 10; i++) {
       keys[i] += key_str;
-      batch.Delete(cfh, keys[i]);
+      batch.Delete(cfh, keys[i]).PermitUncheckedError();
     }
 
     s = db_->Write(writeoptions, &batch);

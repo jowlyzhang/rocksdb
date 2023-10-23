@@ -2202,7 +2202,7 @@ class Stats {
 
   void PrintThreadStatus() {
     std::vector<ThreadStatus> thread_list;
-    FLAGS_env->GetThreadList(&thread_list);
+    FLAGS_env->GetThreadList(&thread_list).PermitUncheckedError();
 
     fprintf(stderr, "\n%18s %10s %12s %20s %13s %45s %12s %s\n", "ThreadID",
             "ThreadType", "cfName", "Operation", "ElapsedTime", "Stage",
@@ -3155,10 +3155,10 @@ class Benchmark {
     }
 
     std::vector<std::string> files;
-    FLAGS_env->GetChildren(FLAGS_db, &files);
+    FLAGS_env->GetChildren(FLAGS_db, &files).PermitUncheckedError();
     for (size_t i = 0; i < files.size(); i++) {
       if (Slice(files[i]).starts_with("heap-")) {
-        FLAGS_env->DeleteFile(FLAGS_db + "/" + files[i]);
+        FLAGS_env->DeleteFile(FLAGS_db + "/" + files[i]).PermitUncheckedError();
       }
     }
     if (!FLAGS_use_existing_db) {
@@ -3169,17 +3169,18 @@ class Benchmark {
       }
       if (use_blob_db_) {
         // Stacked BlobDB
-        blob_db::DestroyBlobDB(FLAGS_db, options, blob_db::BlobDBOptions());
+        blob_db::DestroyBlobDB(FLAGS_db, options, blob_db::BlobDBOptions())
+            .PermitUncheckedError();
       }
-      DestroyDB(FLAGS_db, options);
+      DestroyDB(FLAGS_db, options).PermitUncheckedError();
       if (!FLAGS_wal_dir.empty()) {
-        FLAGS_env->DeleteDir(FLAGS_wal_dir);
+        FLAGS_env->DeleteDir(FLAGS_wal_dir).PermitUncheckedError();
       }
 
       if (FLAGS_num_multi_db > 1) {
-        FLAGS_env->CreateDir(FLAGS_db);
+        FLAGS_env->CreateDir(FLAGS_db).PermitUncheckedError();
         if (!FLAGS_wal_dir.empty()) {
-          FLAGS_env->CreateDir(FLAGS_wal_dir);
+          FLAGS_env->CreateDir(FLAGS_wal_dir).PermitUncheckedError();
         }
       }
     }
@@ -3666,7 +3667,7 @@ class Benchmark {
         } else {
           if (db_.db != nullptr) {
             db_.DeleteDBs();
-            DestroyDB(FLAGS_db, open_options_);
+            DestroyDB(FLAGS_db, open_options_).PermitUncheckedError();
           }
           Options options = open_options_;
           for (size_t i = 0; i < multi_dbs_.size(); i++) {
@@ -3674,7 +3675,8 @@ class Benchmark {
             if (!open_options_.wal_dir.empty()) {
               options.wal_dir = GetPathForMultiple(open_options_.wal_dir, i);
             }
-            DestroyDB(GetPathForMultiple(FLAGS_db, i), options);
+            DestroyDB(GetPathForMultiple(FLAGS_db, i), options)
+                .PermitUncheckedError();
           }
           multi_dbs_.clear();
         }
@@ -4876,7 +4878,8 @@ class Benchmark {
     } else if (FLAGS_use_secondary_db) {
       if (FLAGS_secondary_path.empty()) {
         std::string default_secondary_path;
-        FLAGS_env->GetTestDirectory(&default_secondary_path);
+        FLAGS_env->GetTestDirectory(&default_secondary_path)
+            .PermitUncheckedError();
         default_secondary_path += "/dbbench_secondary";
         FLAGS_secondary_path = default_secondary_path;
       }
@@ -4916,12 +4919,14 @@ class Benchmark {
   enum WriteMode { RANDOM, SEQUENTIAL, UNIQUE_RANDOM };
 
   void WriteSeqDeterministic(ThreadState* thread) {
-    DoDeterministicCompact(thread, open_options_.compaction_style, SEQUENTIAL);
+    DoDeterministicCompact(thread, open_options_.compaction_style, SEQUENTIAL)
+        .PermitUncheckedError();
   }
 
   void WriteUniqueRandomDeterministic(ThreadState* thread) {
     DoDeterministicCompact(thread, open_options_.compaction_style,
-                           UNIQUE_RANDOM);
+                           UNIQUE_RANDOM)
+        .PermitUncheckedError();
   }
 
   void WriteSeq(ThreadState* thread) { DoWrite(thread, SEQUENTIAL); }
@@ -5219,12 +5224,13 @@ class Benchmark {
               // skip the rest of the for-loop, which is designed for
               // inserts.
               if (FLAGS_num_column_families <= 1) {
-                batch.Delete(key);
+                batch.Delete(key).PermitUncheckedError();
               } else {
                 // We use same rand_num as seed for key and column family so
                 // that we can deterministically find the cfh corresponding to a
                 // particular key while reading the key.
-                batch.Delete(db_with_cfh->GetCfh(rand_num), key);
+                batch.Delete(db_with_cfh->GetCfh(rand_num), key)
+                    .PermitUncheckedError();
               }
               // A delete only includes Key+Timestamp (no value).
               batch_bytes += key_size_ + user_timestamp_size_;
@@ -5292,12 +5298,13 @@ class Benchmark {
             s = blobdb->Put(write_options_, key, val);
           }
         } else if (FLAGS_num_column_families <= 1) {
-          batch.Put(key, val);
+          batch.Put(key, val).PermitUncheckedError();
         } else {
           // We use same rand_num as seed for key and column family so that we
           // can deterministically find the cfh corresponding to a particular
           // key while reading the key.
-          batch.Put(db_with_cfh->GetCfh(rand_num), key, val);
+          batch.Put(db_with_cfh->GetCfh(rand_num), key, val)
+              .PermitUncheckedError();
         }
         batch_bytes += val.size() + key_size_ + user_timestamp_size_;
         bytes += val.size() + key_size_ + user_timestamp_size_;
@@ -5339,10 +5346,12 @@ class Benchmark {
                 s = db_with_cfh->db->Delete(write_options_,
                                             expanded_keys[offset]);
               } else if (FLAGS_num_column_families <= 1) {
-                batch.Delete(expanded_keys[offset]);
+                batch.Delete(expanded_keys[offset]).PermitUncheckedError();
               } else {
-                batch.Delete(db_with_cfh->GetCfh(rand_num),
-                             expanded_keys[offset]);
+                batch
+                    .Delete(db_with_cfh->GetCfh(rand_num),
+                            expanded_keys[offset])
+                    .PermitUncheckedError();
               }
             }
           } else {
@@ -5355,10 +5364,12 @@ class Benchmark {
                   write_options_, db_with_cfh->db->DefaultColumnFamily(),
                   begin_key, end_key);
             } else if (FLAGS_num_column_families <= 1) {
-              batch.DeleteRange(begin_key, end_key);
+              batch.DeleteRange(begin_key, end_key).PermitUncheckedError();
             } else {
-              batch.DeleteRange(db_with_cfh->GetCfh(rand_num), begin_key,
-                                end_key);
+              batch
+                  .DeleteRange(db_with_cfh->GetCfh(rand_num), begin_key,
+                               end_key)
+                  .PermitUncheckedError();
             }
           }
         }
@@ -5454,9 +5465,11 @@ class Benchmark {
       if (compaction_style != kCompactionStyleFIFO) {
         db->SetOptions({{"disable_auto_compactions", "1"},
                         {"level0_slowdown_writes_trigger", "400000000"},
-                        {"level0_stop_writes_trigger", "400000000"}});
+                        {"level0_stop_writes_trigger", "400000000"}})
+            .PermitUncheckedError();
       } else {
-        db->SetOptions({{"disable_auto_compactions", "1"}});
+        db->SetOptions({{"disable_auto_compactions", "1"}})
+            .PermitUncheckedError();
       }
     }
 
@@ -5479,7 +5492,7 @@ class Benchmark {
         }
         for (size_t i = 0; i < num_db; i++) {
           auto db = db_list[i];
-          db->Flush(FlushOptions());
+          db->Flush(FlushOptions()).PermitUncheckedError();
           db->GetColumnFamilyMetaData(&meta);
           if (num_files_at_level0[i] == meta.levels[0].files.size() ||
               writes_ == 0) {
@@ -5523,9 +5536,10 @@ class Benchmark {
               compaction_style);
           std::cout << sorted_runs[i][j].size() << std::endl;
           db->CompactFiles(
-              compactionOptions,
-              {sorted_runs[i][j].back().name, sorted_runs[i][j].front().name},
-              static_cast<int>(output_level - j) /*level*/);
+                compactionOptions,
+                {sorted_runs[i][j].back().name, sorted_runs[i][j].front().name},
+                static_cast<int>(output_level - j) /*level*/)
+              .PermitUncheckedError();
         }
       }
     } else if (compaction_style == kCompactionStyleUniversal) {
@@ -5539,7 +5553,7 @@ class Benchmark {
         }
         for (size_t i = 0; i < num_db; i++) {
           auto db = db_list[i];
-          db->Flush(FlushOptions());
+          db->Flush(FlushOptions()).PermitUncheckedError();
           db->GetColumnFamilyMetaData(&meta);
           if (num_files_at_level0[i] == meta.levels[0].files.size() ||
               writes_ == 0) {
@@ -5577,10 +5591,11 @@ class Benchmark {
               mutable_cf_options, static_cast<int>(output_level),
               compaction_style);
           db->CompactFiles(
-              compactionOptions,
-              {sorted_runs[i][j].back().name, sorted_runs[i][j].front().name},
-              (output_level > j ? static_cast<int>(output_level - j)
-                                : 0) /*level*/);
+                compactionOptions,
+                {sorted_runs[i][j].back().name, sorted_runs[i][j].front().name},
+                (output_level > j ? static_cast<int>(output_level - j)
+                                  : 0) /*level*/)
+              .PermitUncheckedError();
         }
       }
     } else if (compaction_style == kCompactionStyleFIFO) {
@@ -5599,7 +5614,7 @@ class Benchmark {
         } else {
           DoWrite(thread, UNIQUE_RANDOM);
         }
-        db->Flush(FlushOptions());
+        db->Flush(FlushOptions()).PermitUncheckedError();
         db->GetColumnFamilyMetaData(&meta);
         auto total_size = meta.levels[0].size;
         if (total_size >=
@@ -5616,7 +5631,8 @@ class Benchmark {
       auto compactionOptions = CompactRangeOptions();
       compactionOptions.max_subcompactions =
           static_cast<uint32_t>(FLAGS_subcompactions);
-      db->CompactRange(compactionOptions, nullptr, nullptr);
+      db->CompactRange(compactionOptions, nullptr, nullptr)
+          .PermitUncheckedError();
     } else {
       fprintf(stdout,
               "%-12s : skipped (-compaction_stype=kCompactionStyleNone)\n",
@@ -5730,13 +5746,15 @@ class Benchmark {
       }
     }
     for (size_t i = 0; i < num_db; i++) {
-      db_list[i]->SetOptions(
-          {{"disable_auto_compactions",
-            std::to_string(options_list[i].disable_auto_compactions)},
-           {"level0_slowdown_writes_trigger",
-            std::to_string(options_list[i].level0_slowdown_writes_trigger)},
-           {"level0_stop_writes_trigger",
-            std::to_string(options_list[i].level0_stop_writes_trigger)}});
+      db_list[i]
+          ->SetOptions(
+              {{"disable_auto_compactions",
+                std::to_string(options_list[i].disable_auto_compactions)},
+               {"level0_slowdown_writes_trigger",
+                std::to_string(options_list[i].level0_slowdown_writes_trigger)},
+               {"level0_stop_writes_trigger",
+                std::to_string(options_list[i].level0_stop_writes_trigger)}})
+          .PermitUncheckedError();
     }
     return Status::OK();
   }
@@ -6199,7 +6217,8 @@ class Benchmark {
         GenerateKeyFromInt(rkey, FLAGS_num, &rkeys[i]);
       }
       db->GetApproximateSizes(&ranges[0], static_cast<int>(entries_per_batch_),
-                              &sizes[0]);
+                              &sizes[0])
+          .PermitUncheckedError();
       num_sizes += entries_per_batch_;
       for (int64_t size : sizes) {
         size_sum += size;
@@ -6460,7 +6479,7 @@ class Benchmark {
     std::unique_ptr<const char[]> key_guard;
     Slice key = AllocateKey(&key_guard);
     PinnableSlice pinnable_val;
-    query.Initiate(ratio);
+    query.Initiate(ratio).PermitUncheckedError();
 
     // the limit of qps initiation
     if (FLAGS_sine_mix_rate) {
@@ -6476,7 +6495,7 @@ class Benchmark {
       use_prefix_modeling = true;
       gen_exp.InitiateExpDistribution(
           FLAGS_num, FLAGS_keyrange_dist_a, FLAGS_keyrange_dist_b,
-          FLAGS_keyrange_dist_c, FLAGS_keyrange_dist_d);
+          FLAGS_keyrange_dist_c, FLAGS_keyrange_dist_d).PermitUncheckedError();
     }
     if (FLAGS_key_dist_a == 0 || FLAGS_key_dist_b == 0) {
       use_random_modeling = true;
@@ -6813,7 +6832,7 @@ class Benchmark {
       for (int64_t j = 0; j < entries_per_batch_; ++j) {
         const int64_t k = seq ? i + j : (thread->rand.Next() % FLAGS_num);
         GenerateKeyFromInt(k, FLAGS_num, &key);
-        batch.Delete(key);
+        batch.Delete(key).PermitUncheckedError();
       }
       Status s;
       if (user_timestamp_size_ > 0) {
@@ -7059,7 +7078,7 @@ class Benchmark {
     Status s;
     for (int i = 0; i < 3; i++) {
       keys[i] = key.ToString() + suffixes[i];
-      batch.Put(keys[i], value);
+      batch.Put(keys[i], value).PermitUncheckedError();
     }
 
     std::unique_ptr<char[]> ts_guard;
@@ -7091,7 +7110,7 @@ class Benchmark {
     Status s;
     for (int i = 0; i < 3; i++) {
       keys[i] = key.ToString() + suffixes[i];
-      batch.Delete(keys[i]);
+      batch.Delete(keys[i]).PermitUncheckedError();
     }
 
     std::unique_ptr<char[]> ts_guard;
@@ -7690,7 +7709,7 @@ class Benchmark {
       if (i % kListSize == 0) {
         // Remove trailing ','
         value.pop_back();
-        db->Merge(WriteOptions(), key, value);
+        db->Merge(WriteOptions(), key, value).PermitUncheckedError();
         value.clear();
       } else {
         value.append(std::to_string(i)).append(",");
@@ -7709,7 +7728,8 @@ class Benchmark {
     std::cout << "--- Get API call --- \n";
     PinnableSlice p_slice;
     uint64_t st = FLAGS_env->NowNanos();
-    db->Get(ReadOptions(), db->DefaultColumnFamily(), key, &p_slice);
+    db->Get(ReadOptions(), db->DefaultColumnFamily(), key, &p_slice)
+        .PermitUncheckedError();
     s.MakeVector(data, p_slice);
     bool found =
         binary_search(data, 0, static_cast<int>(data.size() - 1), lookup_key);
@@ -7731,7 +7751,8 @@ class Benchmark {
         (kTotalValues / 100) + 1;
     db->GetMergeOperands(ReadOptions(), db->DefaultColumnFamily(), key,
                          a_slice.data(), &get_merge_operands_options,
-                         &number_of_operands);
+                         &number_of_operands)
+        .PermitUncheckedError();
     for (PinnableSlice& psl : a_slice) {
       s.MakeVector(data, psl);
       found =
@@ -8002,7 +8023,7 @@ class Benchmark {
           bytes += iter->key().size();
           if (KeyExpired(timestamp_emulator_.get(), iter->key())) {
             thread->stats.FinishedOps(&db_, db_.db, 1, kDelete);
-            db_.db->Delete(write_options_, iter->key());
+            db_.db->Delete(write_options_, iter->key()).PermitUncheckedError();
           } else {
             break;
           }
@@ -8111,17 +8132,17 @@ class Benchmark {
     cro.bottommost_level_compaction =
         BottommostLevelCompaction::kForceOptimized;
     cro.max_subcompactions = static_cast<uint32_t>(FLAGS_subcompactions);
-    db->CompactRange(cro, nullptr, nullptr);
+    db->CompactRange(cro, nullptr, nullptr).PermitUncheckedError();
   }
 
   void CompactAll() {
     CompactRangeOptions cro;
     cro.max_subcompactions = static_cast<uint32_t>(FLAGS_subcompactions);
     if (db_.db != nullptr) {
-      db_.db->CompactRange(cro, nullptr, nullptr);
+      db_.db->CompactRange(cro, nullptr, nullptr).PermitUncheckedError();
     }
     for (const auto& db_with_cfh : multi_dbs_) {
-      db_with_cfh.db->CompactRange(cro, nullptr, nullptr);
+      db_with_cfh.db->CompactRange(cro, nullptr, nullptr).PermitUncheckedError();
     }
   }
 
@@ -8202,7 +8223,9 @@ class Benchmark {
     options.compression = ROCKSDB_NAMESPACE::kDisableCompressionOption;
 
     ROCKSDB_NAMESPACE::ColumnFamilyDescriptor cfDesc;
-    db_with_cfh.db->DefaultColumnFamily()->GetDescriptor(&cfDesc);
+    db_with_cfh.db->DefaultColumnFamily()
+        ->GetDescriptor(&cfDesc)
+        .PermitUncheckedError();
     options.output_file_size_limit = cfDesc.options.target_file_size_base;
 
     Status status =
@@ -8265,10 +8288,10 @@ class Benchmark {
 
   void ResetStats() {
     if (db_.db != nullptr) {
-      db_.db->ResetStats();
+      db_.db->ResetStats().PermitUncheckedError();
     }
     for (const auto& db_with_cfh : multi_dbs_) {
-      db_with_cfh.db->ResetStats();
+      db_with_cfh.db->ResetStats().PermitUncheckedError();
     }
   }
 
@@ -8587,7 +8610,7 @@ int db_bench_tool(int argc, char** argv) {
   // Choose a location for the test database if none given with --db=<path>
   if (FLAGS_db.empty()) {
     std::string default_db_path;
-    FLAGS_env->GetTestDirectory(&default_db_path);
+    FLAGS_env->GetTestDirectory(&default_db_path).PermitUncheckedError();
     default_db_path += "/dbbench";
     FLAGS_db = default_db_path;
   }
