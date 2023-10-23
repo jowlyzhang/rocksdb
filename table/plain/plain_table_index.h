@@ -69,8 +69,6 @@ class PlainTableIndex {
     kSubindex = 2
   };
 
-  explicit PlainTableIndex(Slice data) { InitFromRawData(data); }
-
   PlainTableIndex()
       : index_size_(0),
         sub_index_size_(0),

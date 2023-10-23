@@ -443,7 +443,7 @@ Status SstFileWriter::Finish(ExternalSstFileInfo* file_info) {
         r->file_writer->GetFileChecksumFuncName();
   }
   if (!s.ok()) {
-    r->ioptions.env->DeleteFile(r->file_info.file_path);
+    r->ioptions.env->DeleteFile(r->file_info.file_path).PermitUncheckedError();
   }
 
   if (file_info != nullptr) {
