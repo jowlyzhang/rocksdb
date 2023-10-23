@@ -1758,7 +1758,8 @@ void rocksdb_approximate_sizes_cf(
 }
 
 void rocksdb_delete_file(rocksdb_t* db, const char* name) {
-  db->rep->DeleteFile(name);
+  // FIXME: save error status if there is one.
+  db->rep->DeleteFile(name).PermitUncheckedError();
 }
 
 const rocksdb_livefiles_t* rocksdb_livefiles(rocksdb_t* db) {
@@ -1771,11 +1772,13 @@ void rocksdb_compact_range(rocksdb_t* db, const char* start_key,
                            size_t start_key_len, const char* limit_key,
                            size_t limit_key_len) {
   Slice a, b;
-  db->rep->CompactRange(
-      CompactRangeOptions(),
-      // Pass nullptr Slice if corresponding "const char*" is nullptr
-      (start_key ? (a = Slice(start_key, start_key_len), &a) : nullptr),
-      (limit_key ? (b = Slice(limit_key, limit_key_len), &b) : nullptr));
+  db->rep
+      ->CompactRange(
+          CompactRangeOptions(),
+          // Pass nullptr Slice if corresponding "const char*" is nullptr
+          (start_key ? (a = Slice(start_key, start_key_len), &a) : nullptr),
+          (limit_key ? (b = Slice(limit_key, limit_key_len), &b) : nullptr))
+      .PermitUncheckedError();
 }
 
 void rocksdb_compact_range_cf(rocksdb_t* db,
@@ -1783,11 +1786,14 @@ void rocksdb_compact_range_cf(rocksdb_t* db,
                               const char* start_key, size_t start_key_len,
                               const char* limit_key, size_t limit_key_len) {
   Slice a, b;
-  db->rep->CompactRange(
-      CompactRangeOptions(), column_family->rep,
-      // Pass nullptr Slice if corresponding "const char*" is nullptr
-      (start_key ? (a = Slice(start_key, start_key_len), &a) : nullptr),
-      (limit_key ? (b = Slice(limit_key, limit_key_len), &b) : nullptr));
+  // FIXME: save error status if there is one.
+  db->rep
+      ->CompactRange(
+          CompactRangeOptions(), column_family->rep,
+          // Pass nullptr Slice if corresponding "const char*" is nullptr
+          (start_key ? (a = Slice(start_key, start_key_len), &a) : nullptr),
+          (limit_key ? (b = Slice(limit_key, limit_key_len), &b) : nullptr))
+      .PermitUncheckedError();
 }
 
 void rocksdb_suggest_compact_range(rocksdb_t* db, const char* start_key,
@@ -1817,11 +1823,14 @@ void rocksdb_compact_range_opt(rocksdb_t* db, rocksdb_compactoptions_t* opt,
                                const char* start_key, size_t start_key_len,
                                const char* limit_key, size_t limit_key_len) {
   Slice a, b;
-  db->rep->CompactRange(
-      opt->rep,
-      // Pass nullptr Slice if corresponding "const char*" is nullptr
-      (start_key ? (a = Slice(start_key, start_key_len), &a) : nullptr),
-      (limit_key ? (b = Slice(limit_key, limit_key_len), &b) : nullptr));
+  // FIXME: save error status if there is one.
+  db->rep
+      ->CompactRange(
+          opt->rep,
+          // Pass nullptr Slice if corresponding "const char*" is nullptr
+          (start_key ? (a = Slice(start_key, start_key_len), &a) : nullptr),
+          (limit_key ? (b = Slice(limit_key, limit_key_len), &b) : nullptr))
+      .PermitUncheckedError();
 }
 
 void rocksdb_compact_range_cf_opt(rocksdb_t* db,
@@ -1830,11 +1839,14 @@ void rocksdb_compact_range_cf_opt(rocksdb_t* db,
                                   const char* start_key, size_t start_key_len,
                                   const char* limit_key, size_t limit_key_len) {
   Slice a, b;
-  db->rep->CompactRange(
-      opt->rep, column_family->rep,
-      // Pass nullptr Slice if corresponding "const char*" is nullptr
-      (start_key ? (a = Slice(start_key, start_key_len), &a) : nullptr),
-      (limit_key ? (b = Slice(limit_key, limit_key_len), &b) : nullptr));
+  // FIXME: save error status if there is one.
+  db->rep
+      ->CompactRange(
+          opt->rep, column_family->rep,
+          // Pass nullptr Slice if corresponding "const char*" is nullptr
+          (start_key ? (a = Slice(start_key, start_key_len), &a) : nullptr),
+          (limit_key ? (b = Slice(limit_key, limit_key_len), &b) : nullptr))
+      .PermitUncheckedError();
 }
 
 void rocksdb_flush(rocksdb_t* db, const rocksdb_flushoptions_t* options,
@@ -1954,22 +1966,28 @@ int rocksdb_writebatch_count(rocksdb_writebatch_t* b) { return b->rep.Count(); }
 
 void rocksdb_writebatch_put(rocksdb_writebatch_t* b, const char* key,
                             size_t klen, const char* val, size_t vlen) {
-  b->rep.Put(Slice(key, klen), Slice(val, vlen));
+  // FIXME: save error status if there is one.
+  b->rep.Put(Slice(key, klen), Slice(val, vlen)).PermitUncheckedError();
 }
 
 void rocksdb_writebatch_put_cf(rocksdb_writebatch_t* b,
                                rocksdb_column_family_handle_t* column_family,
                                const char* key, size_t klen, const char* val,
                                size_t vlen) {
-  b->rep.Put(column_family->rep, Slice(key, klen), Slice(val, vlen));
+  // FIXME: save error status if there is one.
+  b->rep.Put(column_family->rep, Slice(key, klen), Slice(val, vlen))
+      .PermitUncheckedError();
 }
 
 void rocksdb_writebatch_put_cf_with_ts(
     rocksdb_writebatch_t* b, rocksdb_column_family_handle_t* column_family,
     const char* key, size_t klen, const char* ts, size_t tslen, const char* val,
     size_t vlen) {
-  b->rep.Put(column_family->rep, Slice(key, klen), Slice(ts, tslen),
-             Slice(val, vlen));
+  // FIXME: save error status if there is one.
+  b->rep
+      .Put(column_family->rep, Slice(key, klen), Slice(ts, tslen),
+           Slice(val, vlen))
+      .PermitUncheckedError();
 }
 
 void rocksdb_writebatch_putv(rocksdb_writebatch_t* b, int num_keys,
@@ -1985,8 +2003,11 @@ void rocksdb_writebatch_putv(rocksdb_writebatch_t* b, int num_keys,
   for (int i = 0; i < num_values; i++) {
     value_slices[i] = Slice(values_list[i], values_list_sizes[i]);
   }
-  b->rep.Put(SliceParts(key_slices.data(), num_keys),
-             SliceParts(value_slices.data(), num_values));
+  // FIXME: save error status if there is one.
+  b->rep
+      .Put(SliceParts(key_slices.data(), num_keys),
+           SliceParts(value_slices.data(), num_values))
+      .PermitUncheckedError();
 }
 
 void rocksdb_writebatch_putv_cf(rocksdb_writebatch_t* b,
@@ -2003,20 +2024,27 @@ void rocksdb_writebatch_putv_cf(rocksdb_writebatch_t* b,
   for (int i = 0; i < num_values; i++) {
     value_slices[i] = Slice(values_list[i], values_list_sizes[i]);
   }
-  b->rep.Put(column_family->rep, SliceParts(key_slices.data(), num_keys),
-             SliceParts(value_slices.data(), num_values));
+
+  // FIXME: save error status if there is one.
+  b->rep
+      .Put(column_family->rep, SliceParts(key_slices.data(), num_keys),
+           SliceParts(value_slices.data(), num_values))
+      .PermitUncheckedError();
 }
 
 void rocksdb_writebatch_merge(rocksdb_writebatch_t* b, const char* key,
                               size_t klen, const char* val, size_t vlen) {
-  b->rep.Merge(Slice(key, klen), Slice(val, vlen));
+  // FIXME: save error status if there is one.
+  b->rep.Merge(Slice(key, klen), Slice(val, vlen)).PermitUncheckedError();
 }
 
 void rocksdb_writebatch_merge_cf(rocksdb_writebatch_t* b,
                                  rocksdb_column_family_handle_t* column_family,
                                  const char* key, size_t klen, const char* val,
                                  size_t vlen) {
-  b->rep.Merge(column_family->rep, Slice(key, klen), Slice(val, vlen));
+  // FIXME: save error status if there is one.
+  b->rep.Merge(column_family->rep, Slice(key, klen), Slice(val, vlen))
+      .PermitUncheckedError();
 }
 
 void rocksdb_writebatch_mergev(rocksdb_writebatch_t* b, int num_keys,
@@ -2032,8 +2060,11 @@ void rocksdb_writebatch_mergev(rocksdb_writebatch_t* b, int num_keys,
   for (int i = 0; i < num_values; i++) {
     value_slices[i] = Slice(values_list[i], values_list_sizes[i]);
   }
-  b->rep.Merge(SliceParts(key_slices.data(), num_keys),
-               SliceParts(value_slices.data(), num_values));
+  // FIXME: save error status if there is one.
+  b->rep
+      .Merge(SliceParts(key_slices.data(), num_keys),
+             SliceParts(value_slices.data(), num_values))
+      .PermitUncheckedError();
 }
 
 void rocksdb_writebatch_mergev_cf(rocksdb_writebatch_t* b,
@@ -2050,42 +2081,54 @@ void rocksdb_writebatch_mergev_cf(rocksdb_writebatch_t* b,
   for (int i = 0; i < num_values; i++) {
     value_slices[i] = Slice(values_list[i], values_list_sizes[i]);
   }
-  b->rep.Merge(column_family->rep, SliceParts(key_slices.data(), num_keys),
-               SliceParts(value_slices.data(), num_values));
+  // FIXME: save error status if there is one.
+  b->rep
+      .Merge(column_family->rep, SliceParts(key_slices.data(), num_keys),
+             SliceParts(value_slices.data(), num_values))
+      .PermitUncheckedError();
 }
 
 void rocksdb_writebatch_delete(rocksdb_writebatch_t* b, const char* key,
                                size_t klen) {
-  b->rep.Delete(Slice(key, klen));
+  // FIXME: save error status if there is one.
+  b->rep.Delete(Slice(key, klen)).PermitUncheckedError();
 }
 
 void rocksdb_writebatch_singledelete(rocksdb_writebatch_t* b, const char* key,
                                      size_t klen) {
-  b->rep.SingleDelete(Slice(key, klen));
+  // FIXME: save error status if there is one.
+  b->rep.SingleDelete(Slice(key, klen)).PermitUncheckedError();
 }
 
 void rocksdb_writebatch_delete_cf(rocksdb_writebatch_t* b,
                                   rocksdb_column_family_handle_t* column_family,
                                   const char* key, size_t klen) {
-  b->rep.Delete(column_family->rep, Slice(key, klen));
+  // FIXME: save error status if there is one.
+  b->rep.Delete(column_family->rep, Slice(key, klen)).PermitUncheckedError();
 }
 
 void rocksdb_writebatch_delete_cf_with_ts(
     rocksdb_writebatch_t* b, rocksdb_column_family_handle_t* column_family,
     const char* key, size_t klen, const char* ts, size_t tslen) {
-  b->rep.Delete(column_family->rep, Slice(key, klen), Slice(ts, tslen));
+  // FIXME: save error status if there is one.
+  b->rep.Delete(column_family->rep, Slice(key, klen), Slice(ts, tslen))
+      .PermitUncheckedError();
 }
 
 void rocksdb_writebatch_singledelete_cf(
     rocksdb_writebatch_t* b, rocksdb_column_family_handle_t* column_family,
     const char* key, size_t klen) {
-  b->rep.SingleDelete(column_family->rep, Slice(key, klen));
+  // FIXME: save error status if there is one.
+  b->rep.SingleDelete(column_family->rep, Slice(key, klen))
+      .PermitUncheckedError();
 }
 
 void rocksdb_writebatch_singledelete_cf_with_ts(
     rocksdb_writebatch_t* b, rocksdb_column_family_handle_t* column_family,
     const char* key, size_t klen, const char* ts, size_t tslen) {
-  b->rep.SingleDelete(column_family->rep, Slice(key, klen), Slice(ts, tslen));
+  // FIXME: save error status if there is one.
+  b->rep.SingleDelete(column_family->rep, Slice(key, klen), Slice(ts, tslen))
+      .PermitUncheckedError();
 }
 
 void rocksdb_writebatch_deletev(rocksdb_writebatch_t* b, int num_keys,
@@ -2095,7 +2138,8 @@ void rocksdb_writebatch_deletev(rocksdb_writebatch_t* b, int num_keys,
   for (int i = 0; i < num_keys; i++) {
     key_slices[i] = Slice(keys_list[i], keys_list_sizes[i]);
   }
-  b->rep.Delete(SliceParts(key_slices.data(), num_keys));
+  // FIXME: save error status if there is one.
+  b->rep.Delete(SliceParts(key_slices.data(), num_keys)).PermitUncheckedError();
 }
 
 void rocksdb_writebatch_deletev_cf(
@@ -2105,23 +2149,30 @@ void rocksdb_writebatch_deletev_cf(
   for (int i = 0; i < num_keys; i++) {
     key_slices[i] = Slice(keys_list[i], keys_list_sizes[i]);
   }
-  b->rep.Delete(column_family->rep, SliceParts(key_slices.data(), num_keys));
+  // FIXME: save error status if there is one.
+  b->rep.Delete(column_family->rep, SliceParts(key_slices.data(), num_keys))
+      .PermitUncheckedError();
 }
 
 void rocksdb_writebatch_delete_range(rocksdb_writebatch_t* b,
                                      const char* start_key,
                                      size_t start_key_len, const char* end_key,
                                      size_t end_key_len) {
-  b->rep.DeleteRange(Slice(start_key, start_key_len),
-                     Slice(end_key, end_key_len));
+  // FIXME: save error status if there is one.
+  b->rep
+      .DeleteRange(Slice(start_key, start_key_len), Slice(end_key, end_key_len))
+      .PermitUncheckedError();
 }
 
 void rocksdb_writebatch_delete_range_cf(
     rocksdb_writebatch_t* b, rocksdb_column_family_handle_t* column_family,
     const char* start_key, size_t start_key_len, const char* end_key,
     size_t end_key_len) {
-  b->rep.DeleteRange(column_family->rep, Slice(start_key, start_key_len),
-                     Slice(end_key, end_key_len));
+  // FIXME: save error status if there is one.
+  b->rep
+      .DeleteRange(column_family->rep, Slice(start_key, start_key_len),
+                   Slice(end_key, end_key_len))
+      .PermitUncheckedError();
 }
 
 void rocksdb_writebatch_delete_rangev(rocksdb_writebatch_t* b, int num_keys,
@@ -2135,8 +2186,11 @@ void rocksdb_writebatch_delete_rangev(rocksdb_writebatch_t* b, int num_keys,
     start_key_slices[i] = Slice(start_keys_list[i], start_keys_list_sizes[i]);
     end_key_slices[i] = Slice(end_keys_list[i], end_keys_list_sizes[i]);
   }
-  b->rep.DeleteRange(SliceParts(start_key_slices.data(), num_keys),
-                     SliceParts(end_key_slices.data(), num_keys));
+  // FIXME: save error status if there is one.
+  b->rep
+      .DeleteRange(SliceParts(start_key_slices.data(), num_keys),
+                   SliceParts(end_key_slices.data(), num_keys))
+      .PermitUncheckedError();
 }
 
 void rocksdb_writebatch_delete_rangev_cf(
@@ -2150,14 +2204,18 @@ void rocksdb_writebatch_delete_rangev_cf(
     start_key_slices[i] = Slice(start_keys_list[i], start_keys_list_sizes[i]);
     end_key_slices[i] = Slice(end_keys_list[i], end_keys_list_sizes[i]);
   }
-  b->rep.DeleteRange(column_family->rep,
-                     SliceParts(start_key_slices.data(), num_keys),
-                     SliceParts(end_key_slices.data(), num_keys));
+  // FIXME: save error status if there is one.
+  b->rep
+      .DeleteRange(column_family->rep,
+                   SliceParts(start_key_slices.data(), num_keys),
+                   SliceParts(end_key_slices.data(), num_keys))
+      .PermitUncheckedError();
 }
 
 void rocksdb_writebatch_put_log_data(rocksdb_writebatch_t* b, const char* blob,
                                      size_t len) {
-  b->rep.PutLogData(Slice(blob, len));
+  // FIXME: save error status if there is one.
+  b->rep.PutLogData(Slice(blob, len)).PermitUncheckedError();
 }
 
 class H : public WriteBatch::Handler {
@@ -2182,7 +2240,8 @@ void rocksdb_writebatch_iterate(rocksdb_writebatch_t* b, void* state,
   handler.state_ = state;
   handler.put_ = put;
   handler.deleted_ = deleted;
-  b->rep.Iterate(&handler);
+  // FIXME: save error status if there is one.
+  b->rep.Iterate(&handler).PermitUncheckedError();
 }
 
 const char* rocksdb_writebatch_data(rocksdb_writebatch_t* b, size_t* size) {
@@ -2228,14 +2287,17 @@ int rocksdb_writebatch_wi_count(rocksdb_writebatch_wi_t* b) {
 
 void rocksdb_writebatch_wi_put(rocksdb_writebatch_wi_t* b, const char* key,
                                size_t klen, const char* val, size_t vlen) {
-  b->rep->Put(Slice(key, klen), Slice(val, vlen));
+  // FIXME: save error status if there is one.
+  b->rep->Put(Slice(key, klen), Slice(val, vlen)).PermitUncheckedError();
 }
 
 void rocksdb_writebatch_wi_put_cf(rocksdb_writebatch_wi_t* b,
                                   rocksdb_column_family_handle_t* column_family,
                                   const char* key, size_t klen, const char* val,
                                   size_t vlen) {
-  b->rep->Put(column_family->rep, Slice(key, klen), Slice(val, vlen));
+  // FIXME: save error status if there is one.
+  b->rep->Put(column_family->rep, Slice(key, klen), Slice(val, vlen))
+      .PermitUncheckedError();
 }
 
 void rocksdb_writebatch_wi_putv(rocksdb_writebatch_wi_t* b, int num_keys,
@@ -2251,8 +2313,11 @@ void rocksdb_writebatch_wi_putv(rocksdb_writebatch_wi_t* b, int num_keys,
   for (int i = 0; i < num_values; i++) {
     value_slices[i] = Slice(values_list[i], values_list_sizes[i]);
   }
-  b->rep->Put(SliceParts(key_slices.data(), num_keys),
-              SliceParts(value_slices.data(), num_values));
+  // FIXME: save error status if there is one.
+  b->rep
+      ->Put(SliceParts(key_slices.data(), num_keys),
+            SliceParts(value_slices.data(), num_values))
+      .PermitUncheckedError();
 }
 
 void rocksdb_writebatch_wi_putv_cf(
@@ -2268,19 +2333,25 @@ void rocksdb_writebatch_wi_putv_cf(
   for (int i = 0; i < num_values; i++) {
     value_slices[i] = Slice(values_list[i], values_list_sizes[i]);
   }
-  b->rep->Put(column_family->rep, SliceParts(key_slices.data(), num_keys),
-              SliceParts(value_slices.data(), num_values));
+  // FIXME: save error status if there is one.
+  b->rep
+      ->Put(column_family->rep, SliceParts(key_slices.data(), num_keys),
+            SliceParts(value_slices.data(), num_values))
+      .PermitUncheckedError();
 }
 
 void rocksdb_writebatch_wi_merge(rocksdb_writebatch_wi_t* b, const char* key,
                                  size_t klen, const char* val, size_t vlen) {
-  b->rep->Merge(Slice(key, klen), Slice(val, vlen));
+  // FIXME: save error status if there is one.
+  b->rep->Merge(Slice(key, klen), Slice(val, vlen)).PermitUncheckedError();
 }
 
 void rocksdb_writebatch_wi_merge_cf(
     rocksdb_writebatch_wi_t* b, rocksdb_column_family_handle_t* column_family,
     const char* key, size_t klen, const char* val, size_t vlen) {
-  b->rep->Merge(column_family->rep, Slice(key, klen), Slice(val, vlen));
+  // FIXME: save error status if there is one.
+  b->rep->Merge(column_family->rep, Slice(key, klen), Slice(val, vlen))
+      .PermitUncheckedError();
 }
 
 void rocksdb_writebatch_wi_mergev(rocksdb_writebatch_wi_t* b, int num_keys,
@@ -2296,8 +2367,11 @@ void rocksdb_writebatch_wi_mergev(rocksdb_writebatch_wi_t* b, int num_keys,
   for (int i = 0; i < num_values; i++) {
     value_slices[i] = Slice(values_list[i], values_list_sizes[i]);
   }
-  b->rep->Merge(SliceParts(key_slices.data(), num_keys),
-                SliceParts(value_slices.data(), num_values));
+  // FIXME: save error status if there is one.
+  b->rep
+      ->Merge(SliceParts(key_slices.data(), num_keys),
+              SliceParts(value_slices.data(), num_values))
+      .PermitUncheckedError();
 }
 
 void rocksdb_writebatch_wi_mergev_cf(
@@ -2313,30 +2387,38 @@ void rocksdb_writebatch_wi_mergev_cf(
   for (int i = 0; i < num_values; i++) {
     value_slices[i] = Slice(values_list[i], values_list_sizes[i]);
   }
-  b->rep->Merge(column_family->rep, SliceParts(key_slices.data(), num_keys),
-                SliceParts(value_slices.data(), num_values));
+  // FIXME: save error status if there is one.
+  b->rep
+      ->Merge(column_family->rep, SliceParts(key_slices.data(), num_keys),
+              SliceParts(value_slices.data(), num_values))
+      .PermitUncheckedError();
 }
 
 void rocksdb_writebatch_wi_delete(rocksdb_writebatch_wi_t* b, const char* key,
                                   size_t klen) {
-  b->rep->Delete(Slice(key, klen));
+  // FIXME: save error status if there is one.
+  b->rep->Delete(Slice(key, klen)).PermitUncheckedError();
 }
 
 void rocksdb_writebatch_wi_singledelete(rocksdb_writebatch_wi_t* b,
                                         const char* key, size_t klen) {
-  b->rep->SingleDelete(Slice(key, klen));
+  // FIXME: save error status if there is one.
+  b->rep->SingleDelete(Slice(key, klen)).PermitUncheckedError();
 }
 
 void rocksdb_writebatch_wi_delete_cf(
     rocksdb_writebatch_wi_t* b, rocksdb_column_family_handle_t* column_family,
     const char* key, size_t klen) {
-  b->rep->Delete(column_family->rep, Slice(key, klen));
+  // FIXME: save error status if there is one.
+  b->rep->Delete(column_family->rep, Slice(key, klen)).PermitUncheckedError();
 }
 
 void rocksdb_writebatch_wi_singledelete_cf(
     rocksdb_writebatch_wi_t* b, rocksdb_column_family_handle_t* column_family,
     const char* key, size_t klen) {
-  b->rep->SingleDelete(column_family->rep, Slice(key, klen));
+  // FIXME: save error status if there is one.
+  b->rep->SingleDelete(column_family->rep, Slice(key, klen))
+      .PermitUncheckedError();
 }
 
 void rocksdb_writebatch_wi_deletev(rocksdb_writebatch_wi_t* b, int num_keys,
@@ -2346,7 +2428,9 @@ void rocksdb_writebatch_wi_deletev(rocksdb_writebatch_wi_t* b, int num_keys,
   for (int i = 0; i < num_keys; i++) {
     key_slices[i] = Slice(keys_list[i], keys_list_sizes[i]);
   }
-  b->rep->Delete(SliceParts(key_slices.data(), num_keys));
+  // FIXME: save error status if there is one.
+  b->rep->Delete(SliceParts(key_slices.data(), num_keys))
+      .PermitUncheckedError();
 }
 
 void rocksdb_writebatch_wi_deletev_cf(
@@ -2356,7 +2440,9 @@ void rocksdb_writebatch_wi_deletev_cf(
   for (int i = 0; i < num_keys; i++) {
     key_slices[i] = Slice(keys_list[i], keys_list_sizes[i]);
   }
-  b->rep->Delete(column_family->rep, SliceParts(key_slices.data(), num_keys));
+  // FIXME: save error status if there is one.
+  b->rep->Delete(column_family->rep, SliceParts(key_slices.data(), num_keys))
+      .PermitUncheckedError();
 }
 
 void rocksdb_writebatch_wi_delete_range(rocksdb_writebatch_wi_t* b,
@@ -2364,16 +2450,22 @@ void rocksdb_writebatch_wi_delete_range(rocksdb_writebatch_wi_t* b,
                                         size_t start_key_len,
                                         const char* end_key,
                                         size_t end_key_len) {
-  b->rep->DeleteRange(Slice(start_key, start_key_len),
-                      Slice(end_key, end_key_len));
+  // FIXME: save error status if there is one.
+  b->rep
+      ->DeleteRange(Slice(start_key, start_key_len),
+                    Slice(end_key, end_key_len))
+      .PermitUncheckedError();
 }
 
 void rocksdb_writebatch_wi_delete_range_cf(
     rocksdb_writebatch_wi_t* b, rocksdb_column_family_handle_t* column_family,
     const char* start_key, size_t start_key_len, const char* end_key,
     size_t end_key_len) {
-  b->rep->DeleteRange(column_family->rep, Slice(start_key, start_key_len),
-                      Slice(end_key, end_key_len));
+  // FIXME: save error status if there is one.
+  b->rep
+      ->DeleteRange(column_family->rep, Slice(start_key, start_key_len),
+                    Slice(end_key, end_key_len))
+      .PermitUncheckedError();
 }
 
 void rocksdb_writebatch_wi_delete_rangev(rocksdb_writebatch_wi_t* b,
@@ -2388,8 +2480,11 @@ void rocksdb_writebatch_wi_delete_rangev(rocksdb_writebatch_wi_t* b,
     start_key_slices[i] = Slice(start_keys_list[i], start_keys_list_sizes[i]);
     end_key_slices[i] = Slice(end_keys_list[i], end_keys_list_sizes[i]);
   }
-  b->rep->DeleteRange(SliceParts(start_key_slices.data(), num_keys),
-                      SliceParts(end_key_slices.data(), num_keys));
+  // FIXME: save error status if there is one.
+  b->rep
+      ->DeleteRange(SliceParts(start_key_slices.data(), num_keys),
+                    SliceParts(end_key_slices.data(), num_keys))
+      .PermitUncheckedError();
 }
 
 void rocksdb_writebatch_wi_delete_rangev_cf(
@@ -2403,14 +2498,18 @@ void rocksdb_writebatch_wi_delete_rangev_cf(
     start_key_slices[i] = Slice(start_keys_list[i], start_keys_list_sizes[i]);
     end_key_slices[i] = Slice(end_keys_list[i], end_keys_list_sizes[i]);
   }
-  b->rep->DeleteRange(column_family->rep,
-                      SliceParts(start_key_slices.data(), num_keys),
-                      SliceParts(end_key_slices.data(), num_keys));
+  // FIXME: save error status if there is one.
+  b->rep
+      ->DeleteRange(column_family->rep,
+                    SliceParts(start_key_slices.data(), num_keys),
+                    SliceParts(end_key_slices.data(), num_keys))
+      .PermitUncheckedError();
 }
 
 void rocksdb_writebatch_wi_put_log_data(rocksdb_writebatch_wi_t* b,
                                         const char* blob, size_t len) {
-  b->rep->PutLogData(Slice(blob, len));
+  // FIXME: save error status if there is one.
+  b->rep->PutLogData(Slice(blob, len)).PermitUncheckedError();
 }
 
 void rocksdb_writebatch_wi_iterate(
@@ -2421,7 +2520,8 @@ void rocksdb_writebatch_wi_iterate(
   handler.state_ = state;
   handler.put_ = put;
   handler.deleted_ = deleted;
-  b->rep->GetWriteBatch()->Iterate(&handler);
+  // FIXME: save error status if there is one.
+  b->rep->GetWriteBatch()->Iterate(&handler).PermitUncheckedError();
 }
 
 const char* rocksdb_writebatch_wi_data(rocksdb_writebatch_wi_t* b,
@@ -6226,12 +6326,15 @@ void rocksdb_transaction_put_cf(rocksdb_transaction_t* txn,
 
 void rocksdb_transaction_set_commit_timestamp(rocksdb_transaction_t* txn,
                                               uint64_t commit_timestamp) {
-  txn->rep->SetCommitTimestamp(commit_timestamp);
+  // FIXME: save error status if there is one.
+  txn->rep->SetCommitTimestamp(commit_timestamp).PermitUncheckedError();
 }
 
 void rocksdb_transaction_set_read_timestamp_for_validation(
     rocksdb_transaction_t* txn, uint64_t read_timestamp) {
-  txn->rep->SetReadTimestampForValidation(read_timestamp);
+  // FIXME: save error status if there is one.
+  txn->rep->SetReadTimestampForValidation(read_timestamp)
+      .PermitUncheckedError();
 }
 
 // Put a key outside a transaction
