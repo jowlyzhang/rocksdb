@@ -66,11 +66,13 @@ inline void toku_external_mutex_init(toku_external_mutex_factory_t factory,
 }
 
 inline void toku_external_mutex_lock(toku_external_mutex_t *mutex) {
-  (*mutex)->Lock();
+  // FIXME: handle error from status
+  (*mutex)->Lock().PermitUncheckedError();
 }
 
 inline int toku_external_mutex_trylock(toku_external_mutex_t *mutex) {
-  (*mutex)->Lock();
+  // FIXME: handle error from status
+  (*mutex)->Lock().PermitUncheckedError();
   return 0;
 }
 

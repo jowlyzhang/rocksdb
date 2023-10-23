@@ -580,7 +580,10 @@ Status DBWithTTLImpl::Write(const WriteOptions& opts, WriteBatch* updates) {
       return WriteBatchInternal::DeleteRange(&updates_ttl, column_family_id,
                                              begin_key, end_key);
     }
-    void LogData(const Slice& blob) override { updates_ttl.PutLogData(blob); }
+    void LogData(const Slice& blob) override {
+      // FIXME: handle error status
+      updates_ttl.PutLogData(blob).PermitUncheckedError();
+    }
 
    private:
     SystemClock* clock_;
