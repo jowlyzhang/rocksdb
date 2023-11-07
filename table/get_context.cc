@@ -21,7 +21,7 @@ namespace ROCKSDB_NAMESPACE {
 
 namespace {
 
-void appendToReplayLog(std::string* replay_log, ValueType type, Slice value) {
+void GetContext::appendToReplayLog(std::string* replay_log, ValueType type, Slice value, Slice ts) {
   if (replay_log) {
     if (replay_log->empty()) {
       // Optimization: in the common case of only one operation in the
@@ -30,6 +30,10 @@ void appendToReplayLog(std::string* replay_log, ValueType type, Slice value) {
     }
     replay_log->push_back(type);
     PutLengthPrefixedSlice(replay_log, value);
+    if (ucmp_->timestamp_size() > 0) {
+      assert(ts.size() == ucmp_->timestamp_size());
+      PutLengthPrefixedSlice(replay_log, ts);
+    }
   }
 }
 
@@ -228,8 +232,6 @@ bool GetContext::SaveValue(const ParsedInternalKey& parsed_key,
       return true;  // to continue to the next seq
     }
 
-    appendToReplayLog(replay_log_, parsed_key.type, value);
-
     if (seq_ != nullptr) {
       // Set the sequence number if it is uninitialized
       if (*seq_ == kMaxSequenceNumber) {
@@ -241,6 +243,7 @@ bool GetContext::SaveValue(const ParsedInternalKey& parsed_key,
     }
 
     size_t ts_sz = ucmp_->timestamp_size();
+    Slice ts;
     if (ts_sz > 0 && timestamp_ != nullptr) {
       if (!timestamp_->empty()) {
         assert(ts_sz == timestamp_->size());
@@ -253,12 +256,15 @@ bool GetContext::SaveValue(const ParsedInternalKey& parsed_key,
         if (ts_from_rangetombstone_) {
           assert(max_covering_tombstone_seq_);
           if (parsed_key.sequence > *max_covering_tombstone_seq_) {
-            Slice ts = ExtractTimestampFromUserKey(parsed_key.user_key, ts_sz);
+            ts = ExtractTimestampFromUserKey(parsed_key.user_key, ts_sz);
             timestamp_->assign(ts.data(), ts.size());
             ts_from_rangetombstone_ = false;
           }
         }
       }
+
+      appendToReplayLog(replay_log_, parsed_key.type, value, ts);
+
       // TODO optimize for small size ts
       const std::string kMaxTs(ts_sz, '\xff');
       if (timestamp_->empty() ||
@@ -557,21 +563,28 @@ void GetContext::push_operand(const Slice& value, Cleanable* value_pinner) {
   }
 }
 
-void replayGetContextLog(const Slice& replay_log, const Slice& user_key,
+void GetContext::replayGetContextLog(const Slice& replay_log, const Slice& user_key,
                          GetContext* get_context, Cleanable* value_pinner,
                          SequenceNumber seq_no) {
   Slice s = replay_log;
+  size_t ts_sz = ucmp_->timestamp_size();
   while (s.size()) {
     auto type = static_cast<ValueType>(*s.data());
     s.remove_prefix(1);
-    Slice value;
+    Slice value, ts;
     bool ret = GetLengthPrefixedSlice(&s, &value);
     assert(ret);
     (void)ret;
+    if (ts_sz > 0) {
+      ret = GetLengthPrefixedSlice(&s, &ts);
+    }
 
     bool dont_care __attribute__((__unused__));
 
     ParsedInternalKey ikey = ParsedInternalKey(user_key, seq_no, type);
+    if (ts.size() > 0) {
+      ikey.SetTimestamp(ts);
+    }
     get_context->SaveValue(ikey, value, &dont_care, value_pinner);
   }
 }
