@@ -3104,6 +3104,29 @@ class ExternalSSTFileWithTimestampTest : public ExternalSSTFileTest {
     } else {
       assert(false);
     }
+
+    // TODO(yuzhangyu): row cache support for MultiGet with timestamp.
+    if (option_config_ == OptionConfig::kRowCache) {
+      return;
+    }
+    std::vector<Slice> key_slices;
+    std::vector<ColumnFamilyHandle*> handles;
+    std::vector<PinnableSlice> pin_values(1);
+    std::vector<std::string> timestamps(1);
+    std::vector<Status> statuses(1);
+    key_slices.emplace_back(key);
+    handles.push_back(db_->DefaultColumnFamily());
+    db_->MultiGet(read_options, 1, handles.data(), key_slices.data(),
+                  pin_values.data(), timestamps.data(), statuses.data());
+    if (statuses[0].ok()) {
+      ASSERT_EQ(pin_values[0], expected_value);
+      ASSERT_EQ(timestamps[0], expected_timestamp);
+    } else if (statuses[0].IsNotFound()) {
+      ASSERT_EQ(kValueNotFound, expected_value);
+      ASSERT_EQ(kTsNotFound, expected_timestamp);
+    } else {
+      assert(false);
+    }
   }
 };
 
@@ -3193,25 +3216,20 @@ TEST_F(ExternalSSTFileWithTimestampTest, Basic) {
               Key(range_del_end) + EncodeAsUint64(range_del_ts));
     // Add file using file path
     ASSERT_OK(IngestExternalUDTFile({file2}));
-    ASSERT_EQ(db_->GetLatestSequenceNumber(), 0U);
+    //    ASSERT_EQ(db_->GetLatestSequenceNumber(), 0U);
 
     for (int k = 50; k < 200; k++) {
       if (k < range_del_begin || k >= range_del_end) {
         VerifyValueAndTs(Key(k), EncodeAsUint64(k), Key(k) + "_val",
                          EncodeAsUint64(k));
+      } else {
+        VerifyValueAndTs(Key(k), EncodeAsUint64(k), Key(k) + "_val",
+                         EncodeAsUint64(k));
+        if (k != range_del_ts) {
+          VerifyValueAndTs(Key(k), EncodeAsUint64(range_del_ts), kValueNotFound,
+                           kTsNotFound);
+        }
       }
-      //      else {
-      //        // FIXME(yuzhangyu): when range tombstone and point data has the
-      //        // same seq, on read path, make range tombstone overrides point
-      //        // data if it has a newer user-defined timestamp. This is how
-      //        // we determine point data's overriding relationship, so we
-      //        //  should keep it consistent.
-      //        VerifyValueAndTs(Key(k), EncodeAsUint64(k), Key(k) + "_val",
-      //                         EncodeAsUint64(k));
-      //        VerifyValueAndTs(Key(k), EncodeAsUint64(range_del_ts),
-      //        kValueNotFound,
-      //                         kTsNotFound);
-      //      }
     }
 
     // file3.sst [100, 200), key range overlap with db

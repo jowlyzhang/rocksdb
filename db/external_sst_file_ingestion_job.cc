@@ -950,6 +950,8 @@ Status ExternalSstFileIngestionJob::AssignLevelAndSeqnoForIngestedFile(
     if (*assigned_seqno == 0) {
       *assigned_seqno = last_seqno + 1;
     }
+  } else if (file_to_ingest->num_range_deletions > 0 && ts_sz > 0) {
+    *assigned_seqno = last_seqno + 1;
   }
   return status;
 }

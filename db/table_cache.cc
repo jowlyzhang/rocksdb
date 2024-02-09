@@ -473,14 +473,18 @@ Status TableCache::Get(
       std::unique_ptr<FragmentedRangeTombstoneIterator> range_del_iter(
           t->NewRangeTombstoneIterator(options));
       if (range_del_iter != nullptr) {
+        // TODO(yuzhangyu): remove this comment
+        // seq = 1
         SequenceNumber seq =
             range_del_iter->MaxCoveringTombstoneSeqnum(ExtractUserKey(k));
+        // TODO(yuzhangyu): remove this comment
+        // max_covering_tombstone_sq is initialized to be 0
         if (seq > *max_covering_tombstone_seq) {
           *max_covering_tombstone_seq = seq;
-          if (get_context->NeedTimestamp()) {
-            get_context->SetTimestampFromRangeTombstone(
-                range_del_iter->timestamp());
-          }
+          // We always need to store timestamp, not just when user asks for it
+          // because we need to use it to later compare with point data's
+          // timestamp when they tie with the same sequence number
+          get_context->SetTimestamp(range_del_iter->timestamp(), true);
         }
       }
     }
@@ -528,10 +532,8 @@ void TableCache::UpdateRangeTombstoneSeqnums(
           range_del_iter->MaxCoveringTombstoneSeqnum(iter->ukey_with_ts);
       if (seq > *max_covering_tombstone_seq) {
         *max_covering_tombstone_seq = seq;
-        if (iter->get_context->NeedTimestamp()) {
-          iter->get_context->SetTimestampFromRangeTombstone(
-              range_del_iter->timestamp());
-        }
+        // TODO(yuzhangyu): how about the iterator path?
+        iter->get_context->SetTimestamp(range_del_iter->timestamp(), true);
       }
     }
   }

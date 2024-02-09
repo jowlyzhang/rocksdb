@@ -147,14 +147,17 @@ class GetContext {
     return max_covering_tombstone_seq_;
   }
 
+  // TODO(yuzhangyu): do we still need this API?
   bool NeedTimestamp() { return timestamp_ != nullptr; }
 
   inline size_t TimestampSize() { return ucmp_->timestamp_size(); }
 
-  void SetTimestampFromRangeTombstone(const Slice& timestamp) {
-    assert(timestamp_);
-    timestamp_->assign(timestamp.data(), timestamp.size());
-    ts_from_rangetombstone_ = true;
+  void SetTimestamp(const Slice& timestamp, bool ts_from_range_tombstone) {
+    ts_from_rangetombstone_ = ts_from_range_tombstone;
+    if (timestamp_ != nullptr) {
+      timestamp_->assign(timestamp.data(), timestamp.size());
+    }
+    saved_ts_.assign(timestamp.data(), timestamp.size());
   }
 
   PinnedIteratorsManager* pinned_iters_mgr() { return pinned_iters_mgr_; }
@@ -193,6 +196,26 @@ class GetContext {
   void push_operand(const Slice& value, Cleanable* value_pinner);
 
  private:
+  // TODO(yuzhangyu): remove this comment
+  // Refactor this, adds the same logic to iterator. And test it in
+  // external_sst_file_test.cc
+  // If there is a range deletion data and it overrides point data
+  inline bool RangeDeletionOverridePointData(
+      const ParsedInternalKey& parsed_key, const Slice& ts) {
+    if (!max_covering_tombstone_seq_ || *max_covering_tombstone_seq_ == 0) {
+      return false;
+    } else if (*max_covering_tombstone_seq_ > parsed_key.sequence) {
+      return true;
+    } else if (*max_covering_tombstone_seq_ < parsed_key.sequence) {
+      return false;
+    } else if (ts.size() > 0) {
+      assert(ts_from_rangetombstone_);
+      assert(saved_ts_.size() == ts.size());
+      return ucmp_->CompareTimestamp(saved_ts_, ts) > 0;
+    }
+    return false;
+  }
+
   // Helper method that postprocesses the results of merge operations, e.g. it
   // sets the state correctly upon merge errors.
   void PostprocessMerge(const Status& merge_status);
@@ -224,6 +247,7 @@ class GetContext {
   PinnableWideColumns* columns_;
   std::string* timestamp_;
   bool ts_from_rangetombstone_{false};
+  std::string saved_ts_;
   bool* value_found_;  // Is value set correctly? Used by KeyMayExist
   MergeContext* merge_context_;
   SequenceNumber* max_covering_tombstone_seq_;
