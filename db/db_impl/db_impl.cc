@@ -6526,14 +6526,17 @@ void DBImpl::InstallSeqnoToTimeMappingInSV(
   std::shared_ptr<SeqnoToTimeMapping> new_seqno_to_time_mapping =
       std::make_shared<SeqnoToTimeMapping>();
   new_seqno_to_time_mapping->CopyFrom(seqno_to_time_mapping_);
+  int i = 0;
   for (ColumnFamilyData* cfd : *versions_->GetColumnFamilySet()) {
     if (cfd->IsDropped()) {
       continue;
     }
+    i+=1;
     sv_contexts->emplace_back(/*create_superversion=*/true);
     sv_contexts->back().new_seqno_to_time_mapping = new_seqno_to_time_mapping;
     cfd->InstallSuperVersion(&sv_contexts->back(),
                              *(cfd->GetLatestMutableCFOptions()));
+    sv_contexts->reserve(i);
   }
   bg_cv_.SignalAll();
 }

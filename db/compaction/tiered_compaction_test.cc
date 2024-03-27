@@ -1599,6 +1599,8 @@ TEST_F(PrecludeLastLevelTest, FastTrackTimedPutToLastLevel) {
   options.last_level_temperature = Temperature::kCold;
   DestroyAndReopen(options);
 
+  CreateColumnFamilies({"foo", "bar", "somefoo", "somebar", "morefoo", "morebar", "kickoff", "start", "endof", "bytime"}, options);
+
   Random rnd(301);
 
   dbfull()->TEST_WaitForPeriodicTaskRun([&] {
