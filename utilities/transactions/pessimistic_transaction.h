@@ -166,6 +166,11 @@ class PessimisticTransaction : public TransactionBaseImpl {
   // performed any GetForUpdate. It is possible that the transaction has
   // performed blind writes or Get, though.
   TxnTimestamp read_timestamp_{kMaxTxnTimestamp};
+  // A boolean flag to mark if any of the keys read via `GetForUpdate` may
+  // already exist in the db. This is only false if none of the keys cannot be
+  // definitively found in the db. If any key may be found, even if it's found
+  // already or the db query cannot proceed for some reason, this will be true.
+  bool keys_may_exist_in_db_{false};
   TxnTimestamp commit_timestamp_{kMaxTxnTimestamp};
 
  private:
