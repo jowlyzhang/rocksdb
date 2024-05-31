@@ -188,12 +188,15 @@ inline Status WriteCommittedTxn::GetForUpdateImpl(
       return s;
     }
   }
-
-  if (!do_validate && kMaxTxnTimestamp != read_timestamp_) {
+  bool skip_udt_validation =
+      txn_db_impl_->GetTxnDBOptions().skip_udt_validation;
+  if (!skip_udt_validation && !do_validate &&
+      kMaxTxnTimestamp != read_timestamp_) {
     return Status::InvalidArgument(
         "If do_validate is false then GetForUpdate with read_timestamp is not "
         "defined.");
-  } else if (do_validate && kMaxTxnTimestamp == read_timestamp_) {
+  } else if (!skip_udt_validation && do_validate &&
+             kMaxTxnTimestamp == read_timestamp_) {
     return Status::InvalidArgument("read_timestamp must be set for validation");
   }
 
@@ -210,7 +213,7 @@ inline Status WriteCommittedTxn::GetForUpdateImpl(
   const char* const ts_buf = read_options.timestamp->data();
   assert(read_options.timestamp->size() == sizeof(kMaxTxnTimestamp));
   TxnTimestamp ts = DecodeFixed64(ts_buf);
-  if (ts != read_timestamp_) {
+  if (!skip_udt_validation && ts != read_timestamp_) {
     return Status::InvalidArgument("Must read from the same read_timestamp");
   }
   return TransactionBaseImpl::GetForUpdate(read_options, column_family, key,
@@ -499,8 +502,10 @@ Status WriteCommittedTxn::SetCommitTimestamp(TxnTimestamp ts) {
   // Only enforcing this if records may have been found for these keys in the db
   // and allow the user to set arbitrary commit timestamp if definitely no
   // records has been found.
-  if (keys_may_exist_in_db_ && read_timestamp_ < kMaxTxnTimestamp &&
-      ts <= read_timestamp_) {
+  bool skip_udt_validation =
+      txn_db_impl_->GetTxnDBOptions().skip_udt_validation;
+  if (!skip_udt_validation && keys_may_exist_in_db_ &&
+      read_timestamp_ < kMaxTxnTimestamp && ts <= read_timestamp_) {
     return Status::InvalidArgument(
         "Cannot commit at timestamp smaller than or equal to read timestamp");
   }
@@ -1213,7 +1218,8 @@ Status PessimisticTransaction::ValidateSnapshot(
   Status s = TransactionUtil::CheckKeyForConflicts(
       db_impl_, cfh, key.ToString(), snap_seq, ts_sz == 0 ? nullptr : &ts_buf,
       /*cache_only=*/false, &found_record_for_key, /*snap_checker=*/nullptr,
-      /*min_uncommitted=*/kMaxSequenceNumber);
+      /*min_uncommitted=*/kMaxSequenceNumber,
+      txn_db_impl_->GetTxnDBOptions().skip_udt_validation);
   // If a record is found or the checking is not successful due to other
   // failures, it's considered the key may exist in the db.
   if (!keys_may_exist_in_db_ &&

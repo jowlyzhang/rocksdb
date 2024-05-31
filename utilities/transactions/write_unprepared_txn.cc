@@ -1079,7 +1079,7 @@ Status WriteUnpreparedTxn::ValidateSnapshot(ColumnFamilyHandle* column_family,
   Status s = TransactionUtil::CheckKeyForConflicts(
       db_impl_, cfh, key.ToString(), snap_seq, /*ts=*/nullptr,
       false /* cache_only */, &found_record_for_key, &snap_checker,
-      min_uncommitted);
+      min_uncommitted, txn_db_impl_->GetTxnDBOptions().skip_udt_validation);
   // If a record is found or the checking is not successful due to other
   // failures, it's considered the key may exist in the db.
   if (!keys_may_exist_in_db_ &&
