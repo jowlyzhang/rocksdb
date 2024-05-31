@@ -1061,6 +1061,9 @@ struct AdvancedColumnFamilyOptions {
   // only compatible changes are allowed.
   bool persist_user_defined_timestamps = true;
 
+  // TODO(yuzhangyu): documentation
+  bool skip_retain_udt_during_manual_flush = false;
+
   // Enable/disable per key-value checksum protection for in memory blocks.
   //
   // Checksum is constructed when a block is loaded into memory and verification
