@@ -3613,7 +3613,6 @@ void DBQuerierCommand::DoCommand() {
 
   ReadOptions read_options;
   WriteOptions write_options;
-
   std::string line;
   std::string key;
   std::string value;

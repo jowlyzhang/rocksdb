@@ -235,6 +235,11 @@ struct TransactionDBOptions {
                      const Slice& /*key*/)>
       rollback_deletion_type_callback;
 
+  // TODO(yuzhangyu):
+  // set this to true to skip user-defined timestamp based validation for the
+  // whole DB.
+  bool skip_udt_validation = false;
+
  private:
   // 128 entries
   // Should the default value change, please also update wp_snapshot_cache_bits

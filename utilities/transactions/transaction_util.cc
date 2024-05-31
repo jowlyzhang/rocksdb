@@ -22,7 +22,7 @@ Status TransactionUtil::CheckKeyForConflicts(
     DBImpl* db_impl, ColumnFamilyHandle* column_family, const std::string& key,
     SequenceNumber snap_seq, const std::string* const read_ts, bool cache_only,
     bool* found_record_for_key, ReadCallback* snap_checker,
-    SequenceNumber min_uncommitted) {
+    SequenceNumber min_uncommitted, bool skip_udt_validation) {
   Status result;
 
   auto cfh = static_cast_with_check<ColumnFamilyHandleImpl>(column_family);
@@ -38,9 +38,9 @@ Status TransactionUtil::CheckKeyForConflicts(
     SequenceNumber earliest_seq =
         db_impl->GetEarliestMemTableSequenceNumber(sv, true);
 
-    result =
-        CheckKey(db_impl, sv, earliest_seq, snap_seq, key, read_ts, cache_only,
-                 found_record_for_key, snap_checker, min_uncommitted);
+    result = CheckKey(db_impl, sv, earliest_seq, snap_seq, key, read_ts,
+                      cache_only, found_record_for_key, snap_checker,
+                      min_uncommitted, skip_udt_validation);
 
     db_impl->ReturnAndCleanupSuperVersion(cfd, sv);
   }
@@ -48,14 +48,12 @@ Status TransactionUtil::CheckKeyForConflicts(
   return result;
 }
 
-Status TransactionUtil::CheckKey(DBImpl* db_impl, SuperVersion* sv,
-                                 SequenceNumber earliest_seq,
-                                 SequenceNumber snap_seq,
-                                 const std::string& key,
-                                 const std::string* const read_ts,
-                                 bool cache_only, bool* found_record_for_key,
-                                 ReadCallback* snap_checker,
-                                 SequenceNumber min_uncommitted) {
+Status TransactionUtil::CheckKey(
+    DBImpl* db_impl, SuperVersion* sv, SequenceNumber earliest_seq,
+    SequenceNumber snap_seq, const std::string& key,
+    const std::string* const read_ts, bool cache_only,
+    bool* found_record_for_key, ReadCallback* snap_checker,
+    SequenceNumber min_uncommitted, bool skip_udt_validation) {
   // When `min_uncommitted` is provided, keys are not always committed
   // in sequence number order, and `snap_checker` is used to check whether
   // specific sequence number is in the database is visible to the transaction.
@@ -133,7 +131,7 @@ Status TransactionUtil::CheckKey(DBImpl* db_impl, SuperVersion* sv,
                                 ? snap_seq < seq
                                 : !snap_checker->IsVisible(seq);
       // Perform conflict checking based on timestamp if applicable.
-      if (!write_conflict && read_ts != nullptr) {
+      if (!skip_udt_validation && !write_conflict && read_ts != nullptr) {
         ColumnFamilyData* cfd = sv->cfd;
         assert(cfd);
         const Comparator* const ucmp = cfd->user_comparator();
@@ -154,7 +152,8 @@ Status TransactionUtil::CheckKey(DBImpl* db_impl, SuperVersion* sv,
 
 Status TransactionUtil::CheckKeysForConflicts(DBImpl* db_impl,
                                               const LockTracker& tracker,
-                                              bool cache_only) {
+                                              bool cache_only,
+                                              bool skip_udt_validation) {
   Status result;
 
   std::unique_ptr<LockTracker::ColumnFamilyIterator> cf_it(
@@ -187,8 +186,11 @@ Status TransactionUtil::CheckKeysForConflicts(DBImpl* db_impl,
       // CheckKeysForConflicts() is currently used only by optimistic
       // transactions.
       bool found_record_for_key = false;
-      result = CheckKey(db_impl, sv, earliest_seq, key_seq, key,
-                        /*read_ts=*/nullptr, cache_only, &found_record_for_key);
+      result =
+          CheckKey(db_impl, sv, earliest_seq, key_seq, key,
+                   /*read_ts=*/nullptr, cache_only, &found_record_for_key,
+                   /*snap_checker=*/nullptr,
+                   /*min_uncommitted=*/kMaxSequenceNumber, skip_udt_validation);
       if (!result.ok()) {
         break;
       }
