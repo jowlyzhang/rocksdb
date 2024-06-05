@@ -719,11 +719,13 @@ class ColumnFamilyHandleImplDummy : public ColumnFamilyHandleImpl {
       : ColumnFamilyHandleImpl(nullptr, nullptr, nullptr),
         id_(id),
         ucmp_(ucmp) {}
+  const std::string& GetName() const override { return name_; }
   uint32_t GetID() const override { return id_; }
   const Comparator* GetComparator() const override { return ucmp_; }
 
  private:
   uint32_t id_;
+  std::string name_ = std::to_string(id_);
   const Comparator* const ucmp_ = BytewiseComparator();
 };
 }  // anonymous namespace
