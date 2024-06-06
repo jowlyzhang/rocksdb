@@ -40,7 +40,6 @@
 
 #include <algorithm>
 #include <cstdint>
-#include <iostream>
 #include <limits>
 #include <map>
 #include <stack>
@@ -1599,12 +1598,6 @@ Status WriteBatch::Merge(ColumnFamilyHandle* column_family, const Slice& key,
   uint32_t cf_id = 0;
   Status s;
 
-  std::cout << "yuzhangyu, Merge operator input key: "
-            << key.ToString(/*hex=*/true)
-            << " value: " << value.ToString(/*hex=*/true)
-            << " for column family: "
-            << (column_family == nullptr ? "default" : column_family->GetName())
-            << std::endl;
   std::tie(s, cf_id, ts_sz) =
       WriteBatchInternal::GetColumnFamilyIdAndTimestampSize(this,
                                                             column_family);
