@@ -465,6 +465,8 @@ class WriteBatch : public WriteBatchBase {
   struct ProtectionInfo;
   size_t GetProtectionBytesPerKey() const;
 
+  std::unordered_map<uint32_t, size_t> cf_id_to_ts_sz_;
+
  private:
   friend class WriteBatchInternal;
   friend class LocalSavePoint;

@@ -687,11 +687,15 @@ Status WriteCommittedTxn::CommitWithoutPrepareInternal() {
     EncodeFixed64(commit_ts_buf, commit_timestamp_);
     Slice commit_ts(commit_ts_buf, sizeof(commit_ts_buf));
 
-    Status s =
-        wb->UpdateTimestamps(commit_ts, [wbwi, this](uint32_t cf) -> size_t {
+    Status s = wb->UpdateTimestamps(
+        commit_ts, [wb, wbwi, this](uint32_t cf) -> size_t {
           auto cf_iter = cfs_with_ts_tracked_when_indexing_disabled_.find(cf);
           if (cf_iter != cfs_with_ts_tracked_when_indexing_disabled_.end()) {
             return sizeof(kMaxTxnTimestamp);
+          }
+          auto iter = wb->cf_id_to_ts_sz_.find(cf);
+          if (iter != wb->cf_id_to_ts_sz_.end()) {
+            return iter->second;
           }
           const Comparator* ucmp =
               WriteBatchWithIndexInternal::GetUserComparator(*wbwi, cf);
@@ -763,16 +767,21 @@ Status WriteCommittedTxn::CommitInternal() {
     s = WriteBatchInternal::MarkCommitWithTimestamp(working_batch, name_,
                                                     commit_ts);
     if (s.ok()) {
-      s = wb->UpdateTimestamps(commit_ts, [wbwi, this](uint32_t cf) -> size_t {
-        if (cfs_with_ts_tracked_when_indexing_disabled_.find(cf) !=
-            cfs_with_ts_tracked_when_indexing_disabled_.end()) {
-          return sizeof(kMaxTxnTimestamp);
-        }
-        const Comparator* ucmp =
-            WriteBatchWithIndexInternal::GetUserComparator(*wbwi, cf);
-        return ucmp ? ucmp->timestamp_size()
-                    : std::numeric_limits<size_t>::max();
-      });
+      s = wb->UpdateTimestamps(
+          commit_ts, [wb, wbwi, this](uint32_t cf) -> size_t {
+            if (cfs_with_ts_tracked_when_indexing_disabled_.find(cf) !=
+                cfs_with_ts_tracked_when_indexing_disabled_.end()) {
+              return sizeof(kMaxTxnTimestamp);
+            }
+            auto iter = wb->cf_id_to_ts_sz_.find(cf);
+            if (iter != wb->cf_id_to_ts_sz_.end()) {
+              return iter->second;
+            }
+            const Comparator* ucmp =
+                WriteBatchWithIndexInternal::GetUserComparator(*wbwi, cf);
+            return ucmp ? ucmp->timestamp_size()
+                        : std::numeric_limits<size_t>::max();
+          });
     }
   }
 

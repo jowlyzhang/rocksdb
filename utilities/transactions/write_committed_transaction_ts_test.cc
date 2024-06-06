@@ -129,6 +129,59 @@ void CheckKeyValueTsWithIterator(
     ASSERT_EQ(iter->timestamp(), timestamp);
   }
 }
+TEST_P(WriteCommittedTxnWithTsTest, ReOpenWithMixture) {
+  options.merge_operator = MergeOperators::CreateUInt64AddOperator();
+  ASSERT_OK(ReOpenNoDelete());
+
+  ColumnFamilyOptions cf_opts;
+  cf_opts.comparator = test::BytewiseComparatorWithU64TsWrapper();
+  const std::string test_cf_name = "test_cf";
+  ColumnFamilyHandle* cfh = nullptr;
+  assert(db);
+  ASSERT_OK(db->CreateColumnFamily(cf_opts, test_cf_name, &cfh));
+  delete cfh;
+  cfh = nullptr;
+
+  std::vector<ColumnFamilyDescriptor> cf_descs;
+  cf_descs.emplace_back(kDefaultColumnFamilyName, options);
+  cf_descs.emplace_back(test_cf_name, cf_opts);
+  ASSERT_OK(ReOpenNoDelete(cf_descs, &handles_));
+
+  std::unique_ptr<Transaction> txn0(
+      NewTxn(WriteOptions(), TransactionOptions()));
+  assert(txn0);
+  ASSERT_OK(txn0->Put(handles_[1], "foo", "val1"));
+  // This is an incorrect usage of this API, but MyRocks is doing this, so give
+  // them some support now.
+  ASSERT_OK(txn0->GetWriteBatch()->GetWriteBatch()->Put(
+      handles_[0], "bar00000000000000000", "val2"));
+  ASSERT_OK(txn0->SetName("txn0"));
+  ASSERT_OK(txn0->SetCommitTimestamp(2));
+  ASSERT_OK(txn0->Prepare());
+  ASSERT_OK(txn0->Commit());
+  txn0.reset();
+
+  std::unique_ptr<Transaction> txn1(
+      NewTxn(WriteOptions(), TransactionOptions()));
+  assert(txn1);
+  std::string value;
+  ASSERT_OK(
+      txn1->Get(ReadOptions(), handles_[0], "bar00000000000000000", &value));
+  ASSERT_EQ("val2", value);
+  txn1.reset();
+
+  std::unique_ptr<Transaction> txn2(
+      NewTxn(WriteOptions(), TransactionOptions()));
+  assert(txn2);
+  ReadOptions ropts;
+  std::string read_ts;
+  PutFixed64(&read_ts, 2);
+  Slice timestamp = read_ts;
+  ropts.timestamp = &timestamp;
+  ASSERT_OK(txn2->Get(ropts, handles_[1], "foo", &value));
+  ASSERT_EQ("val1", value);
+  txn2.reset();
+}
 
 TEST_P(WriteCommittedTxnWithTsTest, ReOpenWithTimestamp) {
   options.merge_operator = MergeOperators::CreateUInt64AddOperator();

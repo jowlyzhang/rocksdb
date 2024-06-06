@@ -927,6 +927,10 @@ Status WriteBatch::Put(ColumnFamilyHandle* column_family, const Slice& key,
     return s;
   }
 
+  if (cf_id_to_ts_sz_.find(cf_id) == cf_id_to_ts_sz_.end()) {
+    cf_id_to_ts_sz_.emplace(cf_id, ts_sz);
+  }
+
   if (0 == ts_sz) {
     return WriteBatchInternal::Put(this, cf_id, key, value);
   }
@@ -1606,10 +1610,13 @@ Status WriteBatch::Merge(ColumnFamilyHandle* column_family, const Slice& key,
     return s;
   }
 
+  if (cf_id_to_ts_sz_.find(cf_id) == cf_id_to_ts_sz_.end()) {
+    cf_id_to_ts_sz_.emplace(cf_id, ts_sz);
+  }
+
   if (0 == ts_sz) {
     return WriteBatchInternal::Merge(this, cf_id, key, value);
   }
-
   needs_in_place_update_ts_ = true;
   has_key_with_ts_ = true;
   std::string dummy_ts(ts_sz, '\0');
