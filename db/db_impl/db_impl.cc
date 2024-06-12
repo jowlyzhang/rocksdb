@@ -5903,6 +5903,9 @@ Status DBImpl::IngestExternalFiles(
     num_running_ingest_file_ += static_cast<int>(num_cfs);
     TEST_SYNC_POINT("DBImpl::IngestExternalFile:AfterIncIngestFileCounter");
 
+    // TODO(yuzhangyu): remove this, notes for debugging
+    // When we do this check, writes are stopped and pending writes are added
+    // to the memtable.
     bool at_least_one_cf_need_flush = false;
     std::vector<bool> need_flush(num_cfs, false);
     for (size_t i = 0; i != num_cfs; ++i) {
@@ -5916,6 +5919,8 @@ Status DBImpl::IngestExternalFiles(
         break;
       }
       bool tmp = false;
+      // TODO(yuzhangyu): remove this comment, it's only notes for debugging
+      // check if a cf needs flush with the current SuperVersion
       status = ingestion_jobs[i].NeedsFlush(&tmp, cfd->GetSuperVersion());
       need_flush[i] = tmp;
       at_least_one_cf_need_flush = (at_least_one_cf_need_flush || tmp);

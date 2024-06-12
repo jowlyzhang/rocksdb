@@ -1829,13 +1829,19 @@ class NonBatchedOpsStressTest : public StressTest {
       }
       if (!s.IsIOError() || !std::strstr(s.getState(), "injected")) {
         fprintf(stderr,
-                "file ingestion error: %s under specified "
+                "file ingestion error for ingesting file %s into column family "
+                "%s: %s under specified "
                 "IngestExternalFileOptions: %s (Empty string or "
                 "missing field indicates default option or value is used)\n",
+                sst_filename.c_str(), std::to_string(column_family).c_str(),
                 s.ToString().c_str(), ingest_options_oss.str().c_str());
         thread->shared->SafeTerminate();
       } else {
-        fprintf(stdout, "file ingestion error: %s\n", s.ToString().c_str());
+        fprintf(stdout,
+                "file ingestion error for ingesting file %s into  column "
+                "family %s: %s\n",
+                sst_filename.c_str(), std::to_string(column_family).c_str(),
+                s.ToString().c_str());
       }
     } else {
       for (PendingExpectedValue& pending_expected_value :
