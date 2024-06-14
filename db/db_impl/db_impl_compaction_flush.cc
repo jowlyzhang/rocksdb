@@ -87,9 +87,6 @@ bool DBImpl::ShouldRescheduleFlushRequestToRetainUDT(
   mutex_.AssertHeld();
   assert(flush_req.cfd_to_max_mem_id_to_persist.size() == 1);
   ColumnFamilyData* cfd = flush_req.cfd_to_max_mem_id_to_persist.begin()->first;
-  if (cfd->FetchAndSubManualFlushBypassReschedule() > 0) {
-    return false;
-  }
   uint64_t max_memtable_id =
       flush_req.cfd_to_max_mem_id_to_persist.begin()->second;
   if (cfd->IsDropped() ||
@@ -2398,12 +2395,6 @@ Status DBImpl::FlushMemTable(ColumnFamilyData* cfd,
       }
       for (const auto& req : flush_reqs) {
         SchedulePendingFlush(req);
-        assert(req.cfd_to_max_mem_id_to_persist.size() == 1);
-        ColumnFamilyData* loop_cfd =
-            req.cfd_to_max_mem_id_to_persist.begin()->first;
-        if (loop_cfd->ioptions()->skip_retain_udt_during_manual_flush) {
-          loop_cfd->SetManualFlushBypassReschedule();
-        }
       }
       MaybeScheduleFlushOrCompaction();
     }

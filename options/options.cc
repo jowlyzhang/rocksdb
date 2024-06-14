@@ -112,9 +112,7 @@ AdvancedColumnFamilyOptions::AdvancedColumnFamilyOptions(const Options& options)
       blob_file_starting_level(options.blob_file_starting_level),
       blob_cache(options.blob_cache),
       prepopulate_blob_cache(options.prepopulate_blob_cache),
-      persist_user_defined_timestamps(options.persist_user_defined_timestamps),
-      skip_retain_udt_during_manual_flush(
-          options.skip_retain_udt_during_manual_flush) {
+      persist_user_defined_timestamps(options.persist_user_defined_timestamps) {
   assert(memtable_factory.get() != nullptr);
   if (max_bytes_for_level_multiplier_additional.size() <
       static_cast<unsigned int>(num_levels)) {
@@ -146,9 +144,6 @@ void ColumnFamilyOptions::Dump(Logger* log) const {
     ROCKS_LOG_HEADER(
         log, "              Options.persist_user_defined_timestamps: %s",
         persist_user_defined_timestamps ? "true" : "false");
-    ROCKS_LOG_HEADER(
-        log, "              Options.skip_retain_udt_during_manual_flush: %s",
-        skip_retain_udt_during_manual_flush ? "true" : "false");
   }
   ROCKS_LOG_HEADER(log, "          Options.merge_operator: %s",
                    merge_operator ? merge_operator->Name() : "None");

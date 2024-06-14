@@ -314,8 +314,6 @@ void UpdateColumnFamilyOptions(const ImmutableCFOptions& ioptions,
       ioptions.preserve_internal_time_seconds;
   cf_opts->persist_user_defined_timestamps =
       ioptions.persist_user_defined_timestamps;
-  cf_opts->skip_retain_udt_during_manual_flush =
-      ioptions.skip_retain_udt_during_manual_flush;
   cf_opts->default_temperature = ioptions.default_temperature;
 
   // TODO(yhchiang): find some way to handle the following derived options

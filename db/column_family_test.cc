@@ -3766,7 +3766,7 @@ TEST_F(ColumnFamilyRetainUDTTest, NotAllKeysExpiredFlushRescheduled) {
   SyncPoint::GetInstance()->SetCallBack(
       "DBImpl::AfterRetainUDTReschedule:cb", [&](void* /*arg*/) {
         // Increasing full_history_ts_low so all keys expired after the initial
-        // initial FlushRequest is rescheduled
+        // FlushRequest is rescheduled
         cutoff_ts.clear();
         PutFixed64(&cutoff_ts, 3);
         ASSERT_OK(db_->IncreaseFullHistoryTsLow(handles_[0], cutoff_ts));
@@ -3800,29 +3800,6 @@ TEST_F(ColumnFamilyRetainUDTTest, NotAllKeysExpiredFlushRescheduled) {
   SyncPoint::GetInstance()->DisableProcessing();
   SyncPoint::GetInstance()->ClearAllCallBacks();
 }
-
-// TEST_F(ColumnFamilyRetainUDTTest, NotAllKeysExpiredManualFlushSkipRetainUDT)
-// {
-//   std::string cutoff_ts;
-//
-//   Open();
-//   std::string write_ts;
-//   PutFixed64(&write_ts, 1);
-//   ASSERT_OK(Put(0, "foo", write_ts, "v1"));
-//   PutFixed64(&cutoff_ts, 1);
-//   ASSERT_OK(db_->IncreaseFullHistoryTsLow(handles_[0], cutoff_ts));
-//   // Not all keys expired, and there is no risk of write stall. Manual flush
-//   // proceed and skip retain UDT
-//   ASSERT_OK(Flush(0));
-//
-//   std::string effective_full_history_ts_low;
-//   ASSERT_OK(
-//       db_->GetFullHistoryTsLow(handles_[0], &effective_full_history_ts_low));
-//   cutoff_ts.clear();
-//   PutFixed64(&cutoff_ts, 2);
-//   ASSERT_EQ(cutoff_ts, effective_full_history_ts_low);
-//   Close();
-// }
 
 }  // namespace ROCKSDB_NAMESPACE
 

@@ -329,23 +329,6 @@ class ColumnFamilyData {
   void SetDropped();
   bool IsDropped() const { return dropped_.load(std::memory_order_relaxed); }
 
-  void SetManualFlushBypassReschedule() {
-    manual_flush_bypass_reschedule_count_.fetch_add(1);
-  }
-
-  uint64_t FetchAndSubManualFlushBypassReschedule() {
-    uint64_t counter = manual_flush_bypass_reschedule_count_.load();
-    while (counter > 0) {
-      // Atomically set the value to counter - 1 if the counter value has not
-      // changed
-      if (manual_flush_bypass_reschedule_count_.compare_exchange_weak(
-              counter, counter - 1)) {
-        return counter;
-      }
-    }
-    return counter;
-  }
-
   // thread-safe
   int NumberLevels() const { return ioptions_.num_levels; }
 
@@ -608,8 +591,6 @@ class ColumnFamilyData {
   std::atomic<int> refs_;  // outstanding references to ColumnFamilyData
   std::atomic<bool> initialized_;
   std::atomic<bool> dropped_;  // true if client dropped it
-
-  std::atomic<uint64_t> manual_flush_bypass_reschedule_count_;
 
   const InternalKeyComparator internal_comparator_;
   InternalTblPropCollFactories internal_tbl_prop_coll_factories_;

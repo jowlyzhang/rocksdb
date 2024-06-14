@@ -538,7 +538,6 @@ ColumnFamilyData::ColumnFamilyData(
       refs_(0),
       initialized_(false),
       dropped_(false),
-      manual_flush_bypass_reschedule_count_(0),
       internal_comparator_(cf_options.comparator),
       initial_cf_options_(SanitizeOptions(db_options, cf_options)),
       ioptions_(db_options, initial_cf_options_),

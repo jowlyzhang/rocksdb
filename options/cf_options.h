@@ -88,8 +88,6 @@ struct ImmutableCFOptions {
   std::shared_ptr<Cache> blob_cache;
 
   bool persist_user_defined_timestamps;
-
-  bool skip_retain_udt_during_manual_flush;
 };
 
 struct ImmutableOptions : public ImmutableDBOptions, public ImmutableCFOptions {
