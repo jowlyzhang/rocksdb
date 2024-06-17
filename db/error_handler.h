@@ -86,6 +86,8 @@ class ErrorHandler {
   void AddFilesToQuarantine(
       autovector<const autovector<uint64_t>*> files_to_quarantine);
 
+  void AddFileToQuarantine(uint64_t file_number);
+
   const autovector<uint64_t>& GetFilesToQuarantine() const {
     db_mutex_->AssertHeld();
     return files_to_quarantine_;

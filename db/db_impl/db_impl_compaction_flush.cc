@@ -298,6 +298,10 @@ Status DBImpl::FlushMemTableToOutputFile(
     flush_job.Cancel();
   }
 
+  if (s.IsCorruption()) {
+    error_handler_.AddFileToQuarantine(file_meta.fd.GetNumber());
+  }
+
   if (s.ok()) {
     InstallSuperVersionAndScheduleWork(cfd, superversion_context,
                                        mutable_cf_options);

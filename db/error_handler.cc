@@ -493,6 +493,17 @@ void ErrorHandler::AddFilesToQuarantine(
                  quarantine_files_oss.str().c_str());
 }
 
+void ErrorHandler::AddFileToQuarantine(
+    uint64_t file_number) {
+  db_mutex_->AssertHeld();
+  std::ostringstream quarantine_files_oss;
+      files_to_quarantine_.push_back(file_number);
+      quarantine_files_oss <<  file_number;
+  ROCKS_LOG_INFO(db_options_.info_log,
+                 "ErrorHandler: added file numbers %s to quarantine.\n",
+                 quarantine_files_oss.str().c_str());
+}
+
 void ErrorHandler::ClearFilesToQuarantine() {
   db_mutex_->AssertHeld();
   files_to_quarantine_.clear();
