@@ -341,12 +341,24 @@ TEST_P(WriteCommittedTxnWithTsTest, RecoverFromWal) {
 
   txn0.reset();
 
+  std::unique_ptr<Transaction> txn3(
+      NewTxn(WriteOptions(), TransactionOptions()));
+  assert(txn3);
+  ASSERT_OK(txn3->Put(handles_[1], "baz", "baz_value"));
+  ASSERT_OK(txn3->SetName("txn3"));
+  ASSERT_OK(txn3->Prepare());
+  txn3.reset();
+
   ASSERT_OK(ReOpenNoDelete(cf_descs, &handles_));
 
   {
+    Transaction* recovered_txn0 = db->GetTransactionByName("txn0");
+    recovered_txn0->SetCommitTimestamp(23);
+    recovered_txn0->Commit();
+    delete recovered_txn0;
     std::string value;
     Status s = GetFromDb(ReadOptions(), handles_[1], "foo", /*ts=*/23, &value);
-    ASSERT_TRUE(s.IsNotFound());
+    ASSERT_EQ("foo_value", value);
 
     s = db->Get(ReadOptions(), handles_[0], "bar", &value);
     ASSERT_OK(s);
@@ -367,6 +379,9 @@ TEST_P(WriteCommittedTxnWithTsTest, RecoverFromWal) {
     s = GetFromDb(ReadOptions(), handles_[1], "key1", /*ts=*/24, &value);
     ASSERT_OK(s);
     ASSERT_EQ("value_3", value);
+
+    s = GetFromDb(ReadOptions(), handles_[1], "baz", /*ts=*/24, &value);
+    ASSERT_TRUE(s.IsNotFound());
   }
 }
 
@@ -602,60 +617,60 @@ TEST_P(WriteCommittedTxnWithTsTest, GetForUpdate) {
   txn5.reset();
 }
 
-//TEST_P(WriteCommittedTxnWithTsTest, GetForUpdateSkipUdtValidation) {
-//  ASSERT_OK(ReOpenNoDelete());
+// TEST_P(WriteCommittedTxnWithTsTest, GetForUpdateSkipUdtValidation) {
+//   ASSERT_OK(ReOpenNoDelete());
 //
-//  ColumnFamilyOptions cf_options;
-//  cf_options.comparator = test::BytewiseComparatorWithU64TsWrapper();
-//  const std::string test_cf_name = "test_cf";
-//  ColumnFamilyHandle* cfh = nullptr;
-//  assert(db);
-//  ASSERT_OK(db->CreateColumnFamily(cf_options, test_cf_name, &cfh));
-//  delete cfh;
-//  cfh = nullptr;
+//   ColumnFamilyOptions cf_options;
+//   cf_options.comparator = test::BytewiseComparatorWithU64TsWrapper();
+//   const std::string test_cf_name = "test_cf";
+//   ColumnFamilyHandle* cfh = nullptr;
+//   assert(db);
+//   ASSERT_OK(db->CreateColumnFamily(cf_options, test_cf_name, &cfh));
+//   delete cfh;
+//   cfh = nullptr;
 //
-//  std::vector<ColumnFamilyDescriptor> cf_descs;
-//  cf_descs.emplace_back(kDefaultColumnFamilyName, options);
-//  cf_descs.emplace_back(test_cf_name, Options(DBOptions(), cf_options));
-//  options.avoid_flush_during_shutdown = true;
+//   std::vector<ColumnFamilyDescriptor> cf_descs;
+//   cf_descs.emplace_back(kDefaultColumnFamilyName, options);
+//   cf_descs.emplace_back(test_cf_name, Options(DBOptions(), cf_options));
+//   options.avoid_flush_during_shutdown = true;
 //
-//  ASSERT_OK(ReOpenNoDelete(cf_descs, &handles_));
+//   ASSERT_OK(ReOpenNoDelete(cf_descs, &handles_));
 //
-//  std::unique_ptr<Transaction> txn0(
-//      NewTxn(WriteOptions(), TransactionOptions()));
+//   std::unique_ptr<Transaction> txn0(
+//       NewTxn(WriteOptions(), TransactionOptions()));
 //
-//  // Not set read timestamp, use blind write
-//  std::unique_ptr<Transaction> txn1(
-//      NewTxn(WriteOptions(), TransactionOptions()));
-//  ASSERT_OK(txn1->Put(handles_[1], "key", "value1"));
-//  ASSERT_OK(txn1->Put(handles_[1], "foo", "value1"));
-//  ASSERT_OK(txn1->SetCommitTimestamp(24));
-//  ASSERT_OK(txn1->Commit());
-//  txn1.reset();
+//   // Not set read timestamp, use blind write
+//   std::unique_ptr<Transaction> txn1(
+//       NewTxn(WriteOptions(), TransactionOptions()));
+//   ASSERT_OK(txn1->Put(handles_[1], "key", "value1"));
+//   ASSERT_OK(txn1->Put(handles_[1], "foo", "value1"));
+//   ASSERT_OK(txn1->SetCommitTimestamp(24));
+//   ASSERT_OK(txn1->Commit());
+//   txn1.reset();
 //
-//  std::unique_ptr<Transaction> txn2(
-//      NewTxn(WriteOptions(), TransactionOptions()));
-//  std::string value;
-//  // No ReadOptions.timestamp set, no `SetReadTimestampForValidation` call made.
-//  ASSERT_TRUE(txn2->GetForUpdate(ReadOptions(), handles_[1], "key", &value).ok());
-//  ASSERT_OK(txn2->Put(handles_[1], "key", "value1"));
-//  ASSERT_OK(txn2->Put(handles_[1], "foo", "value1"));
-//  ASSERT_OK(txn2->SetCommitTimestamp(21));
-//  ASSERT_OK(txn2->Commit());
-//  txn2.reset();
+//   std::unique_ptr<Transaction> txn2(
+//       NewTxn(WriteOptions(), TransactionOptions()));
+//   std::string value;
+//   // No ReadOptions.timestamp set, no `SetReadTimestampForValidation` call
+//   made. ASSERT_TRUE(txn2->GetForUpdate(ReadOptions(), handles_[1], "key",
+//   &value).ok()); ASSERT_OK(txn2->Put(handles_[1], "key", "value1"));
+//   ASSERT_OK(txn2->Put(handles_[1], "foo", "value1"));
+//   ASSERT_OK(txn2->SetCommitTimestamp(21));
+//   ASSERT_OK(txn2->Commit());
+//   txn2.reset();
 //
 //
-//  std::unique_ptr<Transaction> txn3(
-//      NewTxn(WriteOptions(), TransactionOptions()));
-//  // No ReadOptions.timestamp set, no `SetReadTimestampForValidation` call made.
-//  ASSERT_TRUE(txn3->GetForUpdate(ReadOptions(), handles_[1], "key", &value).ok());
-//  ASSERT_OK(txn3->DeleteUntracked(handles_[1], "key"));
-//  ASSERT_OK(txn3->DeleteUntracked(handles_[1], "foo"));
-//  ASSERT_OK(txn3->SetCommitTimestamp(19));
-//  ASSERT_OK(txn3->Commit());
-//  txn3.reset();
+//   std::unique_ptr<Transaction> txn3(
+//       NewTxn(WriteOptions(), TransactionOptions()));
+//   // No ReadOptions.timestamp set, no `SetReadTimestampForValidation` call
+//   made. ASSERT_TRUE(txn3->GetForUpdate(ReadOptions(), handles_[1], "key",
+//   &value).ok()); ASSERT_OK(txn3->DeleteUntracked(handles_[1], "key"));
+//   ASSERT_OK(txn3->DeleteUntracked(handles_[1], "foo"));
+//   ASSERT_OK(txn3->SetCommitTimestamp(19));
+//   ASSERT_OK(txn3->Commit());
+//   txn3.reset();
 //
-//}
+// }
 
 TEST_P(WriteCommittedTxnWithTsTest, BlindWrite) {
   ASSERT_OK(ReOpenNoDelete());
