@@ -55,6 +55,13 @@ Status DeleteDBFile(const ImmutableDBOptions* db_options,
                     const std::string& fname, const std::string& path_to_sync,
                     const bool force_bg, const bool force_fg);
 
+// This is used for DestroyDB
+// TODO(yuzhangyu): documentation similar to DeleteDBFile
+Status TrackAndDeleteDBFile(const ImmutableDBOptions* db_options,
+                            const std::string& fname,
+                            const std::string& path_to_sync,
+                            const bool force_bg, const bool force_fg);
+
 // TODO(hx235): pass the whole DBOptions intead of its individual fields
 IOStatus GenerateOneFileChecksum(
     FileSystem* fs, const std::string& file_path,

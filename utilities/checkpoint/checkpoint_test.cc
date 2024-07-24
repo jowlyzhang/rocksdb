@@ -23,6 +23,8 @@
 #include "port/stack_trace.h"
 #include "rocksdb/db.h"
 #include "rocksdb/env.h"
+#include "rocksdb/rocksdb_namespace.h"
+#include "rocksdb/sst_file_manager.h"
 #include "rocksdb/utilities/transaction_db.h"
 #include "test_util/sync_point.h"
 #include "test_util/testharness.h"
@@ -252,6 +254,13 @@ class CheckpointTest : public testing::Test {
       result = s.ToString();
     }
     return result;
+  }
+
+  int NumTableFilesAtLevel(int level) {
+    std::string property;
+    EXPECT_TRUE(db_->GetProperty(
+        "rocksdb.num-files-at-level" + std::to_string(level), &property));
+    return atoi(property.c_str());
   }
 };
 
@@ -973,6 +982,80 @@ TEST_F(CheckpointTest, PutRaceWithCheckpointTrackedWalSync) {
 
   // Need to close before `fault_env` goes out of scope.
   Close();
+}
+
+TEST_F(CheckpointTest, DestroyCheckpointRateLimited) {
+  Options options = CurrentOptions();
+  options.num_levels = 2;
+  options.disable_auto_compactions = true;
+  DestroyAndReopen(options);
+
+  ASSERT_OK(Put("foo", "a"));
+  ASSERT_OK(Flush());
+  ASSERT_OK(Put("bar", "b"));
+  ASSERT_OK(Flush());
+  ASSERT_OK(db_->CompactRange(CompactRangeOptions(), nullptr, nullptr));
+  for (int i = 0; i < 10; i++) {
+    ASSERT_OK(Put("bar", "val" + std::to_string(i)));
+    ASSERT_OK(Flush());
+  }
+  ASSERT_EQ(NumTableFilesAtLevel(0), 10);
+  ASSERT_EQ(NumTableFilesAtLevel(1), 2);
+
+  Checkpoint* checkpoint;
+  ASSERT_OK(Checkpoint::Create(db_, &checkpoint));
+  ASSERT_OK(checkpoint->CreateCheckpoint(snapshot_name_));
+
+  delete checkpoint;
+  checkpoint = nullptr;
+
+  ASSERT_OK(db_->CompactRange(CompactRangeOptions(), nullptr, nullptr));
+  ASSERT_EQ(NumTableFilesAtLevel(0), 0);
+  ASSERT_EQ(NumTableFilesAtLevel(1), 2);
+
+  DB* snapshot_db;
+  ASSERT_OK(DB::Open(options, snapshot_name_, &snapshot_db));
+  ReadOptions read_opts;
+  std::string get_result;
+  ASSERT_OK(snapshot_db->Get(read_opts, "foo", &get_result));
+  ASSERT_EQ("a", get_result);
+  ASSERT_OK(snapshot_db->Get(read_opts, "bar", &get_result));
+  ASSERT_EQ("val9", get_result);
+  delete snapshot_db;
+  // File 2-11 for "bar" will be compacted into one file on L1 during the
+  // compaction compaction after checkpoint is created.
+  // File 1 on L1: foo, seq: 1 (hard links is 1 after checkpoint destroy)
+  int bg_delete_file = 0;
+  int linked_sst_count = 0;
+  ROCKSDB_NAMESPACE::SyncPoint::GetInstance()->SetCallBack(
+      "DeleteScheduler::DeleteTrashFile:DeleteFile",
+      [&](void* /*arg*/) { bg_delete_file++; });
+  SyncPoint::GetInstance()->SetCallBack(
+      "SstFileManagerImpl::OnAddFileForDestroyDB:cb", [&](void* arg) {
+        ASSERT_NE(nullptr, arg);
+        auto file_name = *static_cast<std::string*>(arg);
+        if (file_name.compare(file_name.size() - 4, 4, ".sst") == 0) {
+          linked_sst_count += 1;
+        }
+      });
+  ROCKSDB_NAMESPACE::SyncPoint::GetInstance()->EnableProcessing();
+  Options destroy_options;
+  Status s;
+  // A ratio of max_trash_db_ratio that is equal to or bigger than 1 is
+  // needed for all eligible files to be slow deleted during DestroyDB
+  destroy_options.sst_file_manager.reset(
+      NewSstFileManager(options.env, options.info_log, "", 1024 * 1024,
+                        false /* delete_existing_trash */, &s, 1));
+  ASSERT_OK(DestroyDB(snapshot_name_, destroy_options));
+  auto sfm =
+      static_cast<SstFileManagerImpl*>(destroy_options.sst_file_manager.get());
+  sfm->WaitForEmptyTrash();
+  ASSERT_EQ(bg_delete_file, 11);
+  ASSERT_EQ(linked_sst_count, 1);
+
+  ASSERT_EQ("a", Get("foo"));
+  ASSERT_EQ("val9", Get("bar"));
+  ROCKSDB_NAMESPACE::SyncPoint::GetInstance()->DisableProcessing();
 }
 
 }  // namespace ROCKSDB_NAMESPACE

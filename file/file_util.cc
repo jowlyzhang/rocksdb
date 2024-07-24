@@ -131,6 +131,24 @@ Status DeleteDBFile(const ImmutableDBOptions* db_options,
   }
 }
 
+Status TrackAndDeleteDBFile(const ImmutableDBOptions* db_options,
+                            const std::string& fname,
+                            const std::string& dir_to_sync, const bool force_bg,
+                            const bool force_fg) {
+  SstFileManagerImpl* sfm =
+      static_cast<SstFileManagerImpl*>(db_options->sst_file_manager.get());
+  if (sfm && !force_fg) {
+    uint64_t file_size = std::numeric_limits<uint64_t>::max();
+    Status s = sfm->OnAddFileForDestroyDB(fname, &file_size);
+    if (!s.ok()) {
+      return s;
+    }
+    return sfm->ScheduleFileDeletion(fname, dir_to_sync, force_bg, file_size);
+  } else {
+    return db_options->env->DeleteFile(fname);
+  }
+}
+
 // requested_checksum_func_name brings the function name of the checksum
 // generator in checksum_factory. Empty string is permitted, in which case the
 // name of the generator created by the factory is unchecked. When

@@ -52,7 +52,8 @@ class DeleteScheduler {
   // set, it forces the file to always be deleted in the background thread,
   // except when rate limiting is disabled
   Status DeleteFile(const std::string& fname, const std::string& dir_to_sync,
-                    const bool force_bg = false);
+                    const bool force_bg = false,
+                    uint64_t file_size = std::numeric_limits<uint64_t>::max());
 
   // Wait for all files being deleteing in the background to finish or for
   // destructor to be called.
