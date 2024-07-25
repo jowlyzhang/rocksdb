@@ -5292,6 +5292,12 @@ Status DestroyDB(const std::string& dbname, const Options& options,
     env->UnlockFile(lock).PermitUncheckedError();
     env->DeleteFile(lockname).PermitUncheckedError();
 
+    // Make sure trash files are all cleared before return.
+    auto sfm =
+        static_cast<SstFileManagerImpl*>(soptions.sst_file_manager.get());
+    if (sfm) {
+      sfm->WaitForEmptyTrash();
+    }
     // sst_file_manager holds a ref to the logger. Make sure the logger is
     // gone before trying to remove the directory.
     soptions.sst_file_manager.reset();

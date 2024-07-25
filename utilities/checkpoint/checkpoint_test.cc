@@ -1047,9 +1047,6 @@ TEST_F(CheckpointTest, DestroyCheckpointRateLimited) {
       NewSstFileManager(options.env, options.info_log, "", 1024 * 1024,
                         false /* delete_existing_trash */, &s, 1));
   ASSERT_OK(DestroyDB(snapshot_name_, destroy_options));
-  auto sfm =
-      static_cast<SstFileManagerImpl*>(destroy_options.sst_file_manager.get());
-  sfm->WaitForEmptyTrash();
   ASSERT_EQ(bg_delete_file, 11);
   ASSERT_EQ(linked_sst_count, 1);
 
