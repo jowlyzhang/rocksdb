@@ -5861,25 +5861,23 @@ Status DBImpl::IngestExternalFiles(
   }
 
   std::vector<ExternalSstFileIngestionJob> ingestion_jobs;
-  for (const auto& arg : args) {
+  uint64_t start_file_number = next_file_number;
+  for (size_t i = 0; i != num_cfs; ++i) {
+    const auto& arg = args[i];
     auto* cfd = static_cast<ColumnFamilyHandleImpl*>(arg.column_family)->cfd();
     ingestion_jobs.emplace_back(versions_.get(), cfd, immutable_db_options_,
                                 mutable_db_options_, file_options_, &snapshots_,
                                 arg.options, &directories_, &event_logger_,
-                                io_tracer_);
+                                io_tracer_, start_file_number, arg);
+    start_file_number += args[i - 1].external_files.size();
   }
 
   // TODO(yanqin) maybe make jobs run in parallel
-  uint64_t start_file_number = next_file_number;
   for (size_t i = 1; i != num_cfs; ++i) {
-    start_file_number += args[i - 1].external_files.size();
     auto* cfd =
         static_cast<ColumnFamilyHandleImpl*>(args[i].column_family)->cfd();
     SuperVersion* super_version = cfd->GetReferencedSuperVersion(this);
-    Status es = ingestion_jobs[i].Prepare(
-        args[i].external_files, args[i].files_checksums,
-        args[i].files_checksum_func_names, args[i].file_temperature,
-        start_file_number, super_version);
+    Status es = ingestion_jobs[i].Prepare(super_version);
     // capture first error only
     if (!es.ok() && status.ok()) {
       status = es;
@@ -5892,10 +5890,7 @@ Status DBImpl::IngestExternalFiles(
     auto* cfd =
         static_cast<ColumnFamilyHandleImpl*>(args[0].column_family)->cfd();
     SuperVersion* super_version = cfd->GetReferencedSuperVersion(this);
-    Status es = ingestion_jobs[0].Prepare(
-        args[0].external_files, args[0].files_checksums,
-        args[0].files_checksum_func_names, args[0].file_temperature,
-        next_file_number, super_version);
+    Status es = ingestion_jobs[0].Prepare(super_version);
     if (!es.ok()) {
       status = es;
     }
@@ -6156,52 +6151,57 @@ Status DBImpl::CreateColumnFamilyWithImport(
   if (!status.ok()) {
     return status;
   }
+  // TODO(yuzhangyu): invoke the internal API here.
+  status = ImportFilesIntoColumnFamily(
+      *handle, /*atomic_data_replacemetn=*/ false, read_options, write_options, import_options,
+      metadata_files);
 
+  if (!status.ok()) {
+    Status temp_s = DropColumnFamily(*handle);
+    if (!temp_s.ok()) {
+      ROCKS_LOG_ERROR(immutable_db_options_.info_log,
+                      "DropColumnFamily failed with error %s",
+                      temp_s.ToString().c_str());
+    }
+    // Always returns Status::OK()
+    temp_s = DestroyColumnFamilyHandle(*handle);
+    assert(temp_s.ok());
+    *handle = nullptr;
+  }
+  return status;
+}
+
+
+
+
+
+Status DBImpl::ImportFilesIntoColumnFamily(
+    ColumnFamilyHandle* handle,
+    const ReadOptions& read_options,
+    const WriteOptions& write_options,
+    const ImportColumnFamilyOptions& import_options,
+    const std::vector<std::vector<LiveFileMetaData*>>& metadata_files) {
+  Status status;
   // Import sst files from metadata.
-  auto cfh = static_cast_with_check<ColumnFamilyHandleImpl>(*handle);
+  auto cfh = static_cast_with_check<ColumnFamilyHandleImpl>(handle);
   auto cfd = cfh->cfd();
+  std::unique_ptr<std::list<uint64_t>::iterator> pending_output_elem;
+  uint64_t next_file_number = 0;
+  status = ReserveFileNumbersBeforeIngestion(cfd, metadata_files.size(),
+                                             pending_output_elem, &next_file_number);
+  if (!status.ok()) {
+    InstrumentedMutexLock l(&mutex_);
+    ReleaseFileNumberFromPendingOutputs(pending_output_elem);
+    return status;
+  }
+
   ImportColumnFamilyJob import_job(versions_.get(), cfd, immutable_db_options_,
                                    file_options_, import_options,
-                                   metadata_files, io_tracer_);
+                                   &directories_, &event_logger_, io_tracer_, next_file_number, metadata_files);
 
-  SuperVersionContext dummy_sv_ctx(/* create_superversion */ true);
-  VersionEdit dummy_edit;
-  uint64_t next_file_number = 0;
-  std::unique_ptr<std::list<uint64_t>::iterator> pending_output_elem;
-  {
-    // Lock db mutex
-    InstrumentedMutexLock l(&mutex_);
-    if (error_handler_.IsDBStopped()) {
-      // Don't import files when there is a bg_error
-      status = error_handler_.GetBGError();
-    }
-
-    // Make sure that bg cleanup wont delete the files that we are importing
-    pending_output_elem.reset(new std::list<uint64_t>::iterator(
-        CaptureCurrentFileNumberInPendingOutputs()));
-
-    if (status.ok()) {
-      // If crash happen after a hard link established, Recover function may
-      // reuse the file number that has already assigned to the internal file,
-      // and this will overwrite the external file. To protect the external
-      // file, we have to make sure the file number will never being reused.
-      next_file_number = versions_->FetchAddFileNumber(total_file_num);
-      auto cf_options = cfd->GetLatestMutableCFOptions();
-      status =
-          versions_->LogAndApply(cfd, *cf_options, read_options, write_options,
-                                 &dummy_edit, &mutex_, directories_.GetDbDir());
-      if (status.ok()) {
-        InstallSuperVersionAndScheduleWork(cfd, &dummy_sv_ctx, *cf_options);
-      }
-    }
-  }
-  dummy_sv_ctx.Clean();
-
-  if (status.ok()) {
-    SuperVersion* sv = cfd->GetReferencedSuperVersion(this);
-    status = import_job.Prepare(next_file_number, sv);
-    CleanupSuperVersion(sv);
-  }
+  SuperVersion* sv = cfd->GetReferencedSuperVersion(this);
+  status = import_job.Prepare(sv);
+  CleanupSuperVersion(sv);
 
   if (status.ok()) {
     SuperVersionContext sv_context(true /*create_superversion*/);
@@ -6216,10 +6216,19 @@ Status DBImpl::CreateColumnFamilyWithImport(
       if (two_write_queues_) {
         nonmem_write_thread_.EnterUnbatched(&nonmem_w, &mutex_);
       }
+      // TODO(yuzhangyu): this is prototyping the changes needed for atomic
+      // data replacement.
+      //      WaitForPendingWrites();
+      //
+      //      if (atomic_data_replacement && !cfd->mem()->empty()) {
+      //        status = SwitchMemtable();
+      //        if (!status.ok()) {
+      //          return status;
+      //        }
+      //      }
 
       num_running_ingest_file_++;
       assert(!cfd->IsDropped());
-      mutex_.AssertHeld();
       status = import_job.Run();
 
       // Install job edit [Mutex will be unlocked here]
@@ -6230,6 +6239,9 @@ Status DBImpl::CreateColumnFamilyWithImport(
                                         &mutex_, directories_.GetDbDir());
         if (status.ok()) {
           InstallSuperVersionAndScheduleWork(cfd, &sv_context, *cf_options);
+        } else if (versions_->io_status().IsIOError()) {
+          const IOStatus& io_s = versions_->io_status();
+          error_handler_.SetBGError(io_s, BackgroundErrorReason::kManifestWrite);
         }
       }
 
@@ -6255,18 +6267,6 @@ Status DBImpl::CreateColumnFamilyWithImport(
   }
 
   import_job.Cleanup(status);
-  if (!status.ok()) {
-    Status temp_s = DropColumnFamily(*handle);
-    if (!temp_s.ok()) {
-      ROCKS_LOG_ERROR(immutable_db_options_.info_log,
-                      "DropColumnFamily failed with error %s",
-                      temp_s.ToString().c_str());
-    }
-    // Always returns Status::OK()
-    temp_s = DestroyColumnFamilyHandle(*handle);
-    assert(temp_s.ok());
-    *handle = nullptr;
-  }
   return status;
 }
 

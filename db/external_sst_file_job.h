@@ -1,3 +1,5 @@
+
+
 //  Copyright (c) 2011-present, Facebook, Inc.  All rights reserved.
 //  This source code is licensed under both the GPLv2 (found in the
 //  COPYING file in the root directory) and Apache 2.0 License
@@ -94,71 +96,49 @@ struct IngestedFileInfo {
   bool user_defined_timestamps_persisted = true;
 };
 
-class ExternalSstFileIngestionJob {
+// TODO(yuzhangyu): implement this.
+struct ExternalSstFilePrepareOptions {
+  ExternalSstFilePrepareOptions(const IngestExternalFileOptions& ingest_options) {}
+
+  ExternalSstFilePrepareOptions(const ImportColumnFamilyOptions& import_options) {}
+};
+
+class ExternalSstFileJob {
  public:
-  ExternalSstFileIngestionJob(
+  ExternalSstFileJob(
       VersionSet* versions, ColumnFamilyData* cfd,
       const ImmutableDBOptions& db_options,
-      const MutableDBOptions& mutable_db_options, const EnvOptions& env_options,
-      SnapshotList* db_snapshots,
-      const IngestExternalFileOptions& ingestion_options,
+      const EnvOptions& env_options,
+      const ExternalSstFilePrepareOptions prepare_options,
       Directories* directories, EventLogger* event_logger,
-      const std::shared_ptr<IOTracer>& io_tracer)
+      const std::shared_ptr<IOTracer>& io_tracer,
+      uint64_t start_file_number)
       : clock_(db_options.clock),
+        job_start_time_(clock_->NowMicros()),
         fs_(db_options.fs, io_tracer),
         versions_(versions),
         cfd_(cfd),
         db_options_(db_options),
-        mutable_db_options_(mutable_db_options),
         env_options_(env_options),
-        db_snapshots_(db_snapshots),
-        ingestion_options_(ingestion_options),
+        prepare_options_(prepare_options),
         directories_(directories),
         event_logger_(event_logger),
-        job_start_time_(clock_->NowMicros()),
-        consumed_seqno_count_(0),
-        io_tracer_(io_tracer) {
+        io_tracer_(io_tracer),
+        start_file_number_(start_file_number) {
     assert(directories != nullptr);
   }
 
-  ~ExternalSstFileIngestionJob() { UnregisterRange(); }
+  ~ExternalSstFileJob() {  }
 
-  // Prepare the job by copying external files into the DB.
-  Status Prepare(const std::vector<std::string>& external_files_paths,
-                 const std::vector<std::string>& files_checksums,
-                 const std::vector<std::string>& files_checksum_func_names,
-                 const Temperature& file_temperature, uint64_t next_file_number,
-                 SuperVersion* sv);
+  // Prepare the external Sst files to get ready for Run.
+  virtual Status Prepare(SuperVersion* sv);
 
-  // Check if we need to flush the memtable before running the ingestion job
-  // This will be true if the files we are ingesting are overlapping with any
-  // key range in the memtable.
-  //
-  // @param super_version A referenced SuperVersion that will be held for the
-  //    duration of this function.
-  //
-  // Thread-safe
-  Status NeedsFlush(bool* flush_needed, SuperVersion* super_version);
-
-  // Will execute the ingestion job and prepare edit() to be applied.
+  // Execute the job and prepare edit() to be applied.
   // REQUIRES: Mutex held
-  Status Run();
-
-  // Register key range involved in this ingestion job
-  // to prevent key range conflict with other ongoing compaction/file ingestion
-  // REQUIRES: Mutex held
-  void RegisterRange();
-
-  // Unregister key range registered for this ingestion job
-  // REQUIRES: Mutex held
-  void UnregisterRange();
-
-  // Update column family stats.
-  // REQUIRES: Mutex held
-  void UpdateStats();
+  virtual Status Run() = 0;
 
   // Cleanup after successful/failed job
-  void Cleanup(const Status& status);
+  virtual void Cleanup(const Status& status);
 
   VersionEdit* edit() { return &edit_; }
 
@@ -166,10 +146,13 @@ class ExternalSstFileIngestionJob {
     return files_to_ingest_;
   }
 
-  // How many sequence numbers did we consume as part of the ingestion job?
-  int ConsumedSequenceNumbersCount() const { return consumed_seqno_count_; }
-
  private:
+  Status PrepareInternal(const std::vector<std::string>& external_files_paths,
+                         const std::vector<std::string>& files_checksums,
+                         const std::vector<std::string>& files_checksum_func_names,
+                         const Temperature& file_temperature,
+                         SuperVersion* sv);
+
   Status ResetTableReader(const std::string& external_file,
                           uint64_t new_file_number,
                           bool user_defined_timestamps_persisted,
@@ -194,75 +177,36 @@ class ExternalSstFileIngestionJob {
                              IngestedFileInfo* file_to_ingest,
                              SuperVersion* sv);
 
-  // Assign `file_to_ingest` the appropriate sequence number and the lowest
-  // possible level that it can be ingested to according to compaction_style.
-  // REQUIRES: Mutex held
-  Status AssignLevelAndSeqnoForIngestedFile(SuperVersion* sv,
-                                            bool force_global_seqno,
-                                            CompactionStyle compaction_style,
-                                            SequenceNumber last_seqno,
-                                            IngestedFileInfo* file_to_ingest,
-                                            SequenceNumber* assigned_seqno);
-
-  // File that we want to ingest behind always goes to the lowest level;
-  // we just check that it fits in the level, that DB allows ingest_behind,
-  // and that we don't have 0 seqnums at the upper levels.
-  // REQUIRES: Mutex held
-  Status CheckLevelForIngestedBehindFile(IngestedFileInfo* file_to_ingest);
-
-  // Set the file global sequence number to `seqno`
-  Status AssignGlobalSeqnoForIngestedFile(IngestedFileInfo* file_to_ingest,
-                                          SequenceNumber seqno);
   // Generate the file checksum and store in the IngestedFileInfo
   IOStatus GenerateChecksumForIngestedFile(IngestedFileInfo* file_to_ingest);
-
-  // Check if `file_to_ingest` can fit in level `level`
-  // REQUIRES: Mutex held
-  bool IngestedFileFitInLevel(const IngestedFileInfo* file_to_ingest,
-                              int level);
 
   // Helper method to sync given file.
   template <typename TWritableFile>
   Status SyncIngestedFile(TWritableFile* file);
 
-  // Create equivalent `Compaction` objects to this file ingestion job
-  // , which will be used to check range conflict with other ongoing
-  // compactions.
-  void CreateEquivalentFileIngestingCompactions();
-
   // Remove all the internal files created, called when ingestion job fails.
   void DeleteInternalFiles();
 
   SystemClock* clock_;
+  uint64_t job_start_time_;
   FileSystemPtr fs_;
   VersionSet* versions_;
   ColumnFamilyData* cfd_;
   const ImmutableDBOptions& db_options_;
-  const MutableDBOptions& mutable_db_options_;
   const EnvOptions& env_options_;
-  SnapshotList* db_snapshots_;
+  const ExternalSstFilePrepareOptions prepare_options_;
   autovector<IngestedFileInfo> files_to_ingest_;
-  const IngestExternalFileOptions& ingestion_options_;
   Directories* directories_;
   EventLogger* event_logger_;
   VersionEdit edit_;
-  uint64_t job_start_time_;
-  int consumed_seqno_count_;
-  // Set in ExternalSstFileIngestionJob::Prepare(), if true all files are
+  // Set in ExternalSstFileJob::PrepareInternal(), if true all files are
   // ingested in L0
   bool files_overlap_{false};
-  // Set in ExternalSstFileIngestionJob::Prepare(), if true and DB
+  // Set in ExternalSstFileJob::PrepareInternal(), if true and DB
   // file_checksum_gen_factory is set, DB will generate checksum each file.
   bool need_generate_file_checksum_{true};
   std::shared_ptr<IOTracer> io_tracer_;
-
-  // Below are variables used in (un)registering range for this ingestion job
-  //
-  // FileMetaData used in inputs of compactions equivalent to this ingestion
-  // job
-  std::vector<FileMetaData*> compaction_input_metdatas_;
-  // Compactions equivalent to this ingestion job
-  std::vector<Compaction*> file_ingesting_compactions_;
+  uint64_t start_file_number_;
 };
 
 }  // namespace ROCKSDB_NAMESPACE

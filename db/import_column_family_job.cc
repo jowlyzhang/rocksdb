@@ -25,138 +25,34 @@
 
 namespace ROCKSDB_NAMESPACE {
 
-Status ImportColumnFamilyJob::Prepare(uint64_t next_file_number,
-                                      SuperVersion* sv) {
-  Status status;
+Status ImportColumnFamilyJob::Prepare(
+    SuperVersion* sv) {
+  std::vector<std::string> external_files_paths;
+  // TODO(yuzhangyu): support file checksum verification.
+  std::vector<std::string> files_checksums;
+  std::vector<std::string> files_checksum_func_names;
+
   std::vector<ColumnFamilyIngestFileInfo> cf_ingest_infos;
-  for (const auto& metadata_per_cf : metadatas_) {
-    // Read the information of files we are importing
-    ColumnFamilyIngestFileInfo cf_file_info;
-    InternalKey smallest, largest;
-    int num_files = 0;
-    std::vector<IngestedFileInfo> files_to_import_per_cf;
-    for (size_t i = 0; i < metadata_per_cf.size(); i++) {
-      auto file_metadata = *metadata_per_cf[i];
+  size_t accumulated_size = 0;
+  for (size_t i = 0; i < metadatas_.size(); i++) {
+    const auto metadata_per_cf = metadatas_[i];
+    metadata_accumulated_sizes_[i] = accumulated_size;
+    accumulated_size += metadata_per_cf.size();
+    for (size_t j = 0; j < metadata_per_cf.size(); j++ ) {
+      auto file_metadata = *metadata_per_cf[j];
       const auto file_path = file_metadata.db_path + "/" + file_metadata.name;
-      IngestedFileInfo file_to_import;
-      status = GetIngestedFileInfo(file_path, next_file_number++, sv,
-                                   file_metadata, &file_to_import);
-      if (!status.ok()) {
-        return status;
-      }
-
-      if (file_to_import.num_entries == 0) {
-        status = Status::InvalidArgument("File contain no entries");
-        return status;
-      }
-
-      if (!file_to_import.smallest_internal_key.Valid() ||
-          !file_to_import.largest_internal_key.Valid()) {
-        status = Status::Corruption("File has corrupted keys");
-        return status;
-      }
-
-      files_to_import_per_cf.push_back(file_to_import);
-      num_files++;
-
-      // Calculate the smallest and largest keys of all files in this CF
-      if (i == 0) {
-        smallest = file_to_import.smallest_internal_key;
-        largest = file_to_import.largest_internal_key;
-      } else {
-        if (cfd_->internal_comparator().Compare(
-                smallest, file_to_import.smallest_internal_key) > 0) {
-          smallest = file_to_import.smallest_internal_key;
-        }
-        if (cfd_->internal_comparator().Compare(
-                largest, file_to_import.largest_internal_key) < 0) {
-          largest = file_to_import.largest_internal_key;
-        }
-      }
-    }
-
-    if (num_files == 0) {
-      status = Status::InvalidArgument("The list of files is empty");
-      return status;
-    }
-    files_to_import_.push_back(files_to_import_per_cf);
-    cf_file_info.smallest_internal_key = smallest;
-    cf_file_info.largest_internal_key = largest;
-    cf_ingest_infos.push_back(cf_file_info);
-  }
-
-  std::sort(cf_ingest_infos.begin(), cf_ingest_infos.end(),
-            [this](const ColumnFamilyIngestFileInfo& info1,
-                   const ColumnFamilyIngestFileInfo& info2) {
-              return cfd_->user_comparator()->Compare(
-                         info1.smallest_internal_key.user_key(),
-                         info2.smallest_internal_key.user_key()) < 0;
-            });
-
-  for (size_t i = 0; i + 1 < cf_ingest_infos.size(); i++) {
-    if (cfd_->user_comparator()->Compare(
-            cf_ingest_infos[i].largest_internal_key.user_key(),
-            cf_ingest_infos[i + 1].smallest_internal_key.user_key()) >= 0) {
-      status = Status::InvalidArgument("CFs have overlapping ranges");
-      return status;
+      external_files_paths.push_back(std::move(file_path));
     }
   }
 
-  // Copy/Move external files into DB
-  auto hardlink_files = import_options_.move_files;
-
-  for (auto& files_to_import_per_cf : files_to_import_) {
-    for (auto& f : files_to_import_per_cf) {
-      const auto path_outside_db = f.external_file_path;
-      const auto path_inside_db = TableFileName(
-          cfd_->ioptions()->cf_paths, f.fd.GetNumber(), f.fd.GetPathId());
-
-      if (hardlink_files) {
-        status = fs_->LinkFile(path_outside_db, path_inside_db, IOOptions(),
-                               nullptr);
-        if (status.IsNotSupported()) {
-          // Original file is on a different FS, use copy instead of hard
-          // linking
-          hardlink_files = false;
-          ROCKS_LOG_INFO(db_options_.info_log,
-                         "Try to link file %s but it's not supported : %s",
-                         f.internal_file_path.c_str(),
-                         status.ToString().c_str());
-        }
-      }
-      if (!hardlink_files) {
-        // FIXME: temperature handling (like ExternalSstFileIngestionJob)
-        status = CopyFile(fs_.get(), path_outside_db, Temperature::kUnknown,
-                          path_inside_db, Temperature::kUnknown, 0,
-                          db_options_.use_fsync, io_tracer_);
-      }
-      if (!status.ok()) {
-        break;
-      }
-      f.copy_file = !hardlink_files;
-      f.internal_file_path = path_inside_db;
-    }
-    if (!status.ok()) {
-      break;
-    }
-  }
-
-  if (!status.ok()) {
-    // We failed, remove all files that we copied into the db
-    for (auto& files_to_import_per_cf : files_to_import_) {
-      for (auto& f : files_to_import_per_cf) {
-        if (f.internal_file_path.empty()) {
-          break;
-        }
-        const auto s =
-            fs_->DeleteFile(f.internal_file_path, IOOptions(), nullptr);
-        if (!s.ok()) {
-          ROCKS_LOG_WARN(db_options_.info_log,
-                         "AddFile() clean up for file %s failed : %s",
-                         f.internal_file_path.c_str(), s.ToString().c_str());
-        }
-      }
-    }
+  // TODO(yuzhangyu): support file temperature.
+  Status status = ExternalSstFileJob::PrepareInternal(external_files_paths,
+                                                      files_checksums,
+                                                      files_checksum_func_names,
+                                                      Temperature::kUnknown,
+                                                      sv);
+  if (status.ok()) {
+    assert(files_to_ingest_.size() == accumulated_size);
   }
 
   return status;
@@ -185,7 +81,7 @@ Status ImportColumnFamilyJob::Run() {
   // increasing epoch numbers to avoid duplicated epoch number. This is done by
   // only resetting epoch number of the new CF in the first call to
   // RecoverEpochNumbers() below.
-  for (size_t i = 0; s.ok() && i < files_to_import_.size(); ++i) {
+  for (size_t i = 0; s.ok() && i < metadatas_.size(); ++i) {
     VersionBuilder dummy_version_builder(
         cfd_->current()->version_set()->file_options(), cfd_->ioptions(),
         cfd_->table_cache(), cfd_->current()->storage_info(),
@@ -198,8 +94,9 @@ Status ImportColumnFamilyJob::Run() {
         EpochNumberRequirement::kMightMissing, cfd_->ioptions()->clock,
         cfd_->GetLatestMutableCFOptions()->bottommost_file_compaction_delay,
         cfd_->current()->version_set()->offpeak_time_option());
-    for (size_t j = 0; s.ok() && j < files_to_import_[i].size(); ++j) {
-      const auto& f = files_to_import_[i][j];
+    size_t accumulated_size = metadata_accumulated_sizes_[i]
+        for (size_t j = 0; s.ok() && j < metadatas_[i].size(); ++j) {
+      const auto& f = files_to_ingest_[accumulated_size + j];
       const auto& file_metadata = *metadatas_[i][j];
 
       uint64_t tail_size = 0;
@@ -257,207 +154,6 @@ Status ImportColumnFamilyJob::Run() {
       }
     }
   }
-
   return s;
-}
-
-void ImportColumnFamilyJob::Cleanup(const Status& status) {
-  if (!status.ok()) {
-    // We failed to add files to the database remove all the files we copied.
-    for (auto& files_to_import_per_cf : files_to_import_) {
-      for (auto& f : files_to_import_per_cf) {
-        const auto s =
-            fs_->DeleteFile(f.internal_file_path, IOOptions(), nullptr);
-        if (!s.ok()) {
-          ROCKS_LOG_WARN(db_options_.info_log,
-                         "AddFile() clean up for file %s failed : %s",
-                         f.internal_file_path.c_str(), s.ToString().c_str());
-        }
-      }
-    }
-  } else if (status.ok() && import_options_.move_files) {
-    // The files were moved and added successfully, remove original file links
-    for (auto& files_to_import_per_cf : files_to_import_) {
-      for (auto& f : files_to_import_per_cf) {
-        const auto s =
-            fs_->DeleteFile(f.external_file_path, IOOptions(), nullptr);
-        if (!s.ok()) {
-          ROCKS_LOG_WARN(
-              db_options_.info_log,
-              "%s was added to DB successfully but failed to remove original "
-              "file link : %s",
-              f.external_file_path.c_str(), s.ToString().c_str());
-        }
-      }
-    }
-  }
-}
-
-Status ImportColumnFamilyJob::GetIngestedFileInfo(
-    const std::string& external_file, uint64_t new_file_number,
-    SuperVersion* sv, const LiveFileMetaData& file_meta,
-    IngestedFileInfo* file_to_import) {
-  file_to_import->external_file_path = external_file;
-  Status status;
-  if (file_meta.size > 0) {
-    file_to_import->file_size = file_meta.size;
-  } else {
-    // Get external file size
-    status = fs_->GetFileSize(external_file, IOOptions(),
-                              &file_to_import->file_size, nullptr);
-    if (!status.ok()) {
-      return status;
-    }
-  }
-  // Assign FD with number
-  file_to_import->fd =
-      FileDescriptor(new_file_number, 0, file_to_import->file_size);
-
-  // Create TableReader for external file
-  std::unique_ptr<TableReader> table_reader;
-  std::unique_ptr<FSRandomAccessFile> sst_file;
-  std::unique_ptr<RandomAccessFileReader> sst_file_reader;
-
-  status =
-      fs_->NewRandomAccessFile(external_file, env_options_, &sst_file, nullptr);
-  if (!status.ok()) {
-    return status;
-  }
-  sst_file_reader.reset(new RandomAccessFileReader(
-      std::move(sst_file), external_file, nullptr /*Env*/, io_tracer_));
-
-  // TODO(yuzhangyu): User-defined timestamps doesn't support importing column
-  //  family. Pass in the correct `user_defined_timestamps_persisted` flag for
-  //  creating `TableReaderOptions` when the support is there.
-  status = cfd_->ioptions()->table_factory->NewTableReader(
-      TableReaderOptions(
-          *cfd_->ioptions(), sv->mutable_cf_options.prefix_extractor,
-          env_options_, cfd_->internal_comparator(),
-          sv->mutable_cf_options.block_protection_bytes_per_key,
-          /*skip_filters*/ false, /*immortal*/ false,
-          /*force_direct_prefetch*/ false, /*level*/ -1,
-          /*block_cache_tracer*/ nullptr,
-          /*max_file_size_for_l0_meta_pin*/ 0, versions_->DbSessionId(),
-          /*cur_file_num*/ new_file_number),
-      std::move(sst_file_reader), file_to_import->file_size, &table_reader);
-  if (!status.ok()) {
-    return status;
-  }
-
-  // Get the external file properties
-  auto props = table_reader->GetTableProperties();
-
-  // Set original_seqno to 0.
-  file_to_import->original_seqno = 0;
-
-  // Get number of entries in table
-  file_to_import->num_entries = props->num_entries;
-
-  // If the importing files were exported with Checkpoint::ExportColumnFamily(),
-  // we cannot simply recompute smallest and largest used to truncate range
-  // tombstones from file content, and we expect smallest and largest populated
-  // in file_meta.
-  if (file_meta.smallest.empty()) {
-    assert(file_meta.largest.empty());
-    // TODO: plumb Env::IOActivity, Env::IOPriority
-    ReadOptions ro;
-    std::unique_ptr<InternalIterator> iter(table_reader->NewIterator(
-        ro, sv->mutable_cf_options.prefix_extractor.get(), /*arena=*/nullptr,
-        /*skip_filters=*/false, TableReaderCaller::kExternalSSTIngestion));
-
-    // Get first (smallest) key from file
-    iter->SeekToFirst();
-    bool bound_set = false;
-    if (iter->Valid()) {
-      file_to_import->smallest_internal_key.DecodeFrom(iter->key());
-      Slice largest;
-      if (strcmp(cfd_->ioptions()->table_factory->Name(), "PlainTable") == 0) {
-        // PlainTable iterator does not support SeekToLast().
-        largest = iter->key();
-        for (; iter->Valid(); iter->Next()) {
-          if (cfd_->internal_comparator().Compare(iter->key(), largest) > 0) {
-            largest = iter->key();
-          }
-        }
-        if (!iter->status().ok()) {
-          return iter->status();
-        }
-      } else {
-        iter->SeekToLast();
-        if (!iter->Valid()) {
-          if (iter->status().ok()) {
-            // The file contains at least 1 key since iter is valid after
-            // SeekToFirst().
-            return Status::Corruption("Can not find largest key in sst file");
-          } else {
-            return iter->status();
-          }
-        }
-        largest = iter->key();
-      }
-      file_to_import->largest_internal_key.DecodeFrom(largest);
-      bound_set = true;
-    } else if (!iter->status().ok()) {
-      return iter->status();
-    }
-
-    std::unique_ptr<InternalIterator> range_del_iter{
-        table_reader->NewRangeTombstoneIterator(ro)};
-    if (range_del_iter != nullptr) {
-      range_del_iter->SeekToFirst();
-      if (range_del_iter->Valid()) {
-        ParsedInternalKey key;
-        Status pik_status = ParseInternalKey(range_del_iter->key(), &key,
-                                             db_options_.allow_data_in_errors);
-        if (!pik_status.ok()) {
-          return Status::Corruption("Corrupted key in external file. ",
-                                    pik_status.getState());
-        }
-        RangeTombstone first_tombstone(key, range_del_iter->value());
-        InternalKey start_key = first_tombstone.SerializeKey();
-        const InternalKeyComparator* icmp = &cfd_->internal_comparator();
-        if (!bound_set ||
-            icmp->Compare(start_key, file_to_import->smallest_internal_key) <
-                0) {
-          file_to_import->smallest_internal_key = start_key;
-        }
-
-        range_del_iter->SeekToLast();
-        pik_status = ParseInternalKey(range_del_iter->key(), &key,
-                                      db_options_.allow_data_in_errors);
-        if (!pik_status.ok()) {
-          return Status::Corruption("Corrupted key in external file. ",
-                                    pik_status.getState());
-        }
-        RangeTombstone last_tombstone(key, range_del_iter->value());
-        InternalKey end_key = last_tombstone.SerializeEndKey();
-        if (!bound_set ||
-            icmp->Compare(end_key, file_to_import->largest_internal_key) > 0) {
-          file_to_import->largest_internal_key = end_key;
-        }
-        bound_set = true;
-      }
-    }
-    assert(bound_set);
-  } else {
-    assert(!file_meta.largest.empty());
-    file_to_import->smallest_internal_key.DecodeFrom(file_meta.smallest);
-    file_to_import->largest_internal_key.DecodeFrom(file_meta.largest);
-  }
-
-  file_to_import->cf_id = static_cast<uint32_t>(props->column_family_id);
-
-  file_to_import->table_properties = *props;
-
-  auto s = GetSstInternalUniqueId(props->db_id, props->db_session_id,
-                                  props->orig_file_number,
-                                  &(file_to_import->unique_id));
-  if (!s.ok()) {
-    ROCKS_LOG_WARN(db_options_.info_log,
-                   "Failed to get SST unique id for file %s",
-                   file_to_import->internal_file_path.c_str());
-  }
-
-  return status;
 }
 }  // namespace ROCKSDB_NAMESPACE
