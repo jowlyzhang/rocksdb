@@ -226,11 +226,11 @@ Status BuildTable(
       // the in memory version of the key act logically the same as one with a
       // minimum timestamp. We update the timestamp here so file boundary and
       // output validator, block builder all see the effect of the stripping.
-      if (logical_strip_timestamp) {
-        key_after_flush_buf.clear();
-        ReplaceInternalKeyWithMinTimestamp(&key_after_flush_buf, key, ts_sz);
-        key_after_flush = key_after_flush_buf;
-      }
+      //      if (logical_strip_timestamp) {
+      //        key_after_flush_buf.clear();
+      //        ReplaceInternalKeyWithMinTimestamp(&key_after_flush_buf, key,
+      //        ts_sz); key_after_flush = key_after_flush_buf;
+      //      }
 
       if (ikey.type == kTypeValuePreferredSeqno) {
         auto [unpacked_value, unix_write_time] =

@@ -3863,9 +3863,10 @@ TEST_F(ManualFlushSkipRetainUDTTest, ManualFlush) {
 
   // Manual flush proceeds without trying to retain UDT.
   ASSERT_OK(Put(0, "foo", EncodeAsUint64(1), "v1"));
+  ASSERT_OK(Put(0, "foo", EncodeAsUint64(2), "v2"));
   ASSERT_OK(Flush(0));
-  CheckEffectiveCutoffTime(2);
-  CheckAutomaticFlushRetainUDT(3);
+  CheckEffectiveCutoffTime(3);
+  CheckAutomaticFlushRetainUDT(4);
 
   Close();
 }

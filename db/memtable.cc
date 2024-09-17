@@ -367,7 +367,8 @@ class MemTableIterator : public InternalIterator {
  public:
   MemTableIterator(const MemTable& mem, const ReadOptions& read_options,
                    UnownedPtr<const SeqnoToTimeMapping> seqno_to_time_mapping,
-                   Arena* arena, bool use_range_del_table = false)
+                   Arena* arena, bool use_range_del_table = false,
+                   bool strip_timestamp = false)
       : bloom_(nullptr),
         prefix_extractor_(mem.prefix_extractor_),
         comparator_(mem.comparator_),
@@ -392,6 +393,7 @@ class MemTableIterator : public InternalIterator {
     } else {
       iter_ = mem.table_->GetIterator(arena);
     }
+    strip_timestamp_ = strip_timestamp;
     status_.PermitUncheckedError();
   }
   // No copying allowed
@@ -450,6 +452,7 @@ class MemTableIterator : public InternalIterator {
     }
     valid_ = iter_->Valid();
     VerifyEntryChecksum();
+    UpdateKeyCopy();
   }
   void SeekForPrev(const Slice& k) override {
     PERF_TIMER_GUARD(seek_on_memtable_time);
@@ -475,6 +478,7 @@ class MemTableIterator : public InternalIterator {
     }
     valid_ = iter_->Valid();
     VerifyEntryChecksum();
+    UpdateKeyCopy();
     if (!Valid() && status().ok()) {
       SeekToLast();
     }
@@ -487,12 +491,14 @@ class MemTableIterator : public InternalIterator {
     iter_->SeekToFirst();
     valid_ = iter_->Valid();
     VerifyEntryChecksum();
+    UpdateKeyCopy();
   }
   void SeekToLast() override {
     status_ = Status::OK();
     iter_->SeekToLast();
     valid_ = iter_->Valid();
     VerifyEntryChecksum();
+    UpdateKeyCopy();
   }
   void Next() override {
     PERF_COUNTER_ADD(next_on_memtable_count, 1);
@@ -505,6 +511,7 @@ class MemTableIterator : public InternalIterator {
     }
     valid_ = iter_->Valid();
     VerifyEntryChecksum();
+    UpdateKeyCopy();
   }
   bool NextAndGetResult(IterateResult* result) override {
     Next();
@@ -526,10 +533,15 @@ class MemTableIterator : public InternalIterator {
     }
     valid_ = iter_->Valid();
     VerifyEntryChecksum();
+    UpdateKeyCopy();
   }
   Slice key() const override {
     assert(Valid());
-    return GetLengthPrefixedSlice(iter_->key());
+    if (strip_timestamp_) {
+      return key_copy_;
+    } else {
+      return key_;
+    }
   }
 
   uint64_t write_unix_time() const override {
@@ -580,6 +592,9 @@ class MemTableIterator : public InternalIterator {
   bool arena_mode_;
   const bool paranoid_memory_checks_;
   const bool allow_data_in_error;
+  bool strip_timestamp_;
+  std::string key_copy_;
+  Slice key_;
 
   void VerifyEntryChecksum() {
     if (protection_bytes_per_key_ > 0 && Valid()) {
@@ -590,15 +605,28 @@ class MemTableIterator : public InternalIterator {
       }
     }
   }
+
+  void UpdateKeyCopy() {
+    if (!Valid()) {
+      return;
+    }
+    key_ = GetLengthPrefixedSlice(iter_->key());
+    if (strip_timestamp_) {
+      key_copy_.clear();
+      ReplaceInternalKeyWithMinTimestamp(&key_copy_, key_, ts_sz_);
+    }
+  }
 };
 
 InternalIterator* MemTable::NewIterator(
     const ReadOptions& read_options,
-    UnownedPtr<const SeqnoToTimeMapping> seqno_to_time_mapping, Arena* arena) {
+    UnownedPtr<const SeqnoToTimeMapping> seqno_to_time_mapping, Arena* arena,
+    bool strip_timestamp) {
   assert(arena != nullptr);
   auto mem = arena->AllocateAligned(sizeof(MemTableIterator));
   return new (mem)
-      MemTableIterator(*this, read_options, seqno_to_time_mapping, arena);
+      MemTableIterator(*this, read_options, seqno_to_time_mapping, arena,
+                       /*use_range_del_table*/ false, strip_timestamp);
 }
 
 FragmentedRangeTombstoneIterator* MemTable::NewRangeTombstoneIterator(
