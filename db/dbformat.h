@@ -562,6 +562,8 @@ inline uint64_t GetInternalKeySeqno(const Slice& internal_key) {
 //    allocation for smaller keys.
 // 3. It tracks user key or internal key, and allow conversion between them.
 class IterKey {
+  static constexpr char kTsMin[] = "\x00\x00\x00\x00\x00\x00\x00\x00";
+
  public:
   IterKey()
       : buf_(space_),
@@ -641,13 +643,15 @@ class IterKey {
                                const char* non_shared_data,
                                const size_t non_shared_len,
                                const size_t ts_sz) {
-    std::string kTsMin(ts_sz, static_cast<unsigned char>(0));
-    std::string key_with_ts;
-    std::vector<Slice> key_parts_with_ts;
+    // This function is only used by the UDT in memtable feature, which only
+    // support built in comparators with uint64 timestamps.
+    assert(ts_sz == sizeof(uint64_t));
+    size_t next_key_slice_index = 0;
     if (IsUserKey()) {
-      key_parts_with_ts = {Slice(key_, shared_len),
-                           Slice(non_shared_data, non_shared_len),
-                           Slice(kTsMin)};
+      key_slices_[next_key_slice_index++] = Slice(key_, shared_len);
+      key_slices_[next_key_slice_index++] =
+          Slice(non_shared_data, non_shared_len);
+      key_slices_[next_key_slice_index++] = Slice(kTsMin, ts_sz);
     } else {
       assert(shared_len + non_shared_len >= kNumInternalBytes);
       // Invaraint: shared_user_key_len + shared_internal_bytes_len = shared_len
@@ -664,35 +668,76 @@ class IterKey {
 
       // One Slice among the three Slices will get split into two Slices, plus
       // a timestamp slice.
-      key_parts_with_ts.reserve(5);
       bool ts_added = false;
       // Add slice parts and find the right location to add the min timestamp.
       MaybeAddKeyPartsWithTimestamp(
           key_, shared_user_key_len,
           shared_internal_bytes_len + non_shared_len < kNumInternalBytes,
-          shared_len + non_shared_len - kNumInternalBytes, kTsMin,
-          key_parts_with_ts, &ts_added);
+          shared_len + non_shared_len - kNumInternalBytes, ts_sz,
+          &next_key_slice_index, &ts_added);
       MaybeAddKeyPartsWithTimestamp(
           key_ + user_key_len, shared_internal_bytes_len,
           non_shared_len < kNumInternalBytes,
-          shared_internal_bytes_len + non_shared_len - kNumInternalBytes,
-          kTsMin, key_parts_with_ts, &ts_added);
+          shared_internal_bytes_len + non_shared_len - kNumInternalBytes, ts_sz,
+          &next_key_slice_index, &ts_added);
       MaybeAddKeyPartsWithTimestamp(non_shared_data, non_shared_len,
                                     non_shared_len >= kNumInternalBytes,
-                                    non_shared_len - kNumInternalBytes, kTsMin,
-                                    key_parts_with_ts, &ts_added);
+                                    non_shared_len - kNumInternalBytes, ts_sz,
+                                    &next_key_slice_index, &ts_added);
       assert(ts_added);
     }
-
-    Slice new_key(SliceParts(&key_parts_with_ts.front(),
-                             static_cast<int>(key_parts_with_ts.size())),
-                  &key_with_ts);
-    SetKey(new_key);
+    SetKey(next_key_slice_index,
+           /* total_bytes= */ shared_len + non_shared_len + ts_sz);
   }
 
   Slice SetKey(const Slice& key, bool copy = true) {
     // is_user_key_ expected to be set already via SetIsUserKey
     return SetKeyImpl(key, copy);
+  }
+
+  Slice SetUserKeyWithPaddedMinTimestamp(const Slice& key, size_t ts_sz) {
+    // This function is only used by the UDT in memtable feature, which only
+    // support built in comparators with uint64 timestamps.
+    assert(ts_sz == sizeof(uint64_t));
+    key_slices_[0] = key;
+    key_slices_[1] = Slice(kTsMin, ts_sz);
+    return SetKey(/* num_key_slices= */ 2, key.size() + ts_sz);
+  }
+
+  Slice SetInteralKeyWithPaddedMinTimestamp(const Slice& key, size_t ts_sz) {
+    // This function is only used by the UDT in memtable feature, which only
+    // support built in comparators with uint64 timestamps.
+    assert(ts_sz == sizeof(uint64_t));
+    assert(key.size() >= kNumInternalBytes);
+    size_t user_key_size = key.size() - kNumInternalBytes;
+    key_slices_[0] = Slice(key.data(), user_key_size);
+    key_slices_[1] = Slice(kTsMin, ts_sz);
+    key_slices_[2] = Slice(key.data() + user_key_size, kNumInternalBytes);
+    return SetKey(/* num_key_slices= */ 3, key.size() + ts_sz);
+  }
+
+  Slice SetKey(size_t num_key_slices, size_t total_bytes) {
+    assert(num_key_slices <= 5);
+    // Copying key_parts in order to buf_
+    EnlargeBufferIfNeeded(total_bytes);
+#ifndef NDEBUG
+    size_t actual_total_bytes = 0;
+#endif  // NDEBUG
+    char* buf_start = buf_;
+    for (size_t i = 0; i < num_key_slices; i++) {
+      size_t key_size = key_slices_[i].size();
+      memcpy(buf_start, key_slices_[i].data(), key_size);
+      buf_start += key_size;
+#ifndef NDEBUG
+      actual_total_bytes += key_size;
+#endif  // NDEBUG
+    }
+#ifndef NDEBUG
+    assert(actual_total_bytes == total_bytes);
+#endif  // NDEBUG
+    key_ = buf_;
+    key_size_ = total_bytes;
+    return Slice(key_, key_size_);
   }
 
   // If user-defined timestamp is enabled, then `key` includes timestamp.
@@ -808,6 +853,7 @@ class IterKey {
   size_t buf_size_;
   char space_[39];  // Avoid allocation for short keys
   bool is_user_key_;
+  Slice key_slices_[5];
 
   Slice SetKeyImpl(const Slice& key, bool copy) {
     size_t size = key.size();
@@ -850,18 +896,18 @@ class IterKey {
 
   void MaybeAddKeyPartsWithTimestamp(const char* slice_data,
                                      const size_t slice_sz, bool add_timestamp,
-                                     const size_t left_sz,
-                                     const std::string& min_timestamp,
-                                     std::vector<Slice>& key_parts,
+                                     const size_t left_sz, const size_t ts_sz,
+                                     size_t* next_key_slice_idx,
                                      bool* ts_added) {
     if (add_timestamp && !*ts_added) {
       assert(slice_sz >= left_sz);
-      key_parts.emplace_back(slice_data, left_sz);
-      key_parts.emplace_back(min_timestamp);
-      key_parts.emplace_back(slice_data + left_sz, slice_sz - left_sz);
+      key_slices_[(*next_key_slice_idx)++] = Slice(slice_data, left_sz);
+      key_slices_[(*next_key_slice_idx)++] = Slice(kTsMin, ts_sz);
+      key_slices_[(*next_key_slice_idx)++] =
+          Slice(slice_data + left_sz, slice_sz - left_sz);
       *ts_added = true;
     } else {
-      key_parts.emplace_back(slice_data, slice_sz);
+      key_slices_[(*next_key_slice_idx)++] = Slice(slice_data, slice_sz);
     }
   }
 };
