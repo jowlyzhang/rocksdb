@@ -11,6 +11,7 @@
 
 #include <cinttypes>
 #include <vector>
+#include <iostream>
 
 #include "db/column_family.h"
 #include "db/dbformat.h"
@@ -377,6 +378,7 @@ Compaction::Compaction(
   }
 
   if (earliest_snapshot_.has_value()) {
+    std::cout << "yuzhangyu_debug, earliest_snapshot provided: " << earliest_snapshot_.value() << std::endl;
     FilterInputsForCompactionIterator();
   }
 
@@ -1026,8 +1028,10 @@ void Compaction::FilterInputsForCompactionIterator() {
                   (fmeta->fd.smallest_seqno), (earliest_snapshot_.value())) ==
               SnapshotCheckerResult::kInSnapshot)));
     if (!range_del_in_snapshot) {
+      std::cout << "yuzhangyu_debug, standalone range deletion file is not in snapshot " << std::endl;
       continue;
     }
+    std::cout << "yuzhangyu_debug, standalone range deletion file is definitely in snapshot " << std::endl;
     standalone_range_tombstones_for_filtering.emplace_back(
         fmeta->smallest.user_key(), fmeta->largest.user_key(),
         fmeta->fd.smallest_seqno);
@@ -1047,7 +1051,10 @@ void Compaction::FilterInputsForCompactionIterator() {
       bool file_is_filtered = false;
       for (const auto& [start_ukey, end_ukey, seqno] :
            standalone_range_tombstones_for_filtering) {
-        if (seqno < file->fd.largest_seqno) {
+        // TODO(yuzhangyu): in read path, range data's sequence number needs to
+        // be strictly bigger: *max_covering_tombstone_seq_ > parsed_key.sequence
+        if (seqno <= file->fd.largest_seqno) {
+          std::cout << "yuzhangyu_debug, file is not filtered because its sequence number is not lower " << std::endl;
           continue;
         }
 
@@ -1056,9 +1063,11 @@ void Compaction::FilterInputsForCompactionIterator() {
             ucmp->CompareWithoutTimestamp(end_ukey, file->largest.user_key()) >
                 0) {
           file_is_filtered = true;
+          std::cout << "yuzhangyu_debug, file is filtered during compaction: " << std::endl;
           filtered_input_files_.emplace(file->fd.GetNumber());
           continue;
         }
+        std::cout << "yuzhangyu_debug, file is not filtered because its range is not covered " << std::endl;
       }
       if (!file_is_filtered) {
         level_files.back().push_back(file);

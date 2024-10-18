@@ -10,6 +10,7 @@
 #include <string>
 #include <unordered_set>
 #include <vector>
+#include <iostream>
 
 #include "db/db_impl/db_impl.h"
 #include "db/version_edit.h"
@@ -530,6 +531,7 @@ Status ExternalSstFileIngestionJob::AssignLevelsForOneBatch(
         tail_size, file->user_defined_timestamps_persisted);
     f_metadata.temperature = file->file_temperature;
     f_metadata.marked_for_compaction = marked_for_compaction;
+    std::cout << "yuzhangyu_debug, file is standalone range del: " << marked_for_compaction << ", assigned seqno: " << file->assigned_seqno << std::endl;
     edit_.AddFile(file->picked_level, f_metadata);
 
     *batch_uppermost_level =
