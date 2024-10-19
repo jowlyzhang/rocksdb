@@ -10,6 +10,7 @@
 #pragma once
 
 #include "db/compaction/compaction_picker.h"
+#include "db/snapshot_checker.h"
 
 namespace ROCKSDB_NAMESPACE {
 class UniversalCompactionPicker : public CompactionPicker {
@@ -23,6 +24,7 @@ class UniversalCompactionPicker : public CompactionPicker {
       const std::vector<SequenceNumber>& existing_snapshots,
       const SnapshotChecker* snapshot_checker, VersionStorageInfo* vstorage,
       LogBuffer* log_buffer) override;
+
   int MaxOutputLevel() const override { return NumberLevels() - 1; }
 
   bool NeedsCompaction(const VersionStorageInfo* vstorage) const override;
