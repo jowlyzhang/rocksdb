@@ -5,6 +5,7 @@
 
 #include <atomic>
 #ifdef GFLAGS
+#include <iostream>
 
 #include "db/wide/wide_column_serialization.h"
 #include "db/wide/wide_columns_helper.h"

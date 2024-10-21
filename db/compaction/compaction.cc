@@ -11,6 +11,7 @@
 
 #include <cinttypes>
 #include <vector>
+#include <iostream>
 
 #include "db/column_family.h"
 #include "db/dbformat.h"
@@ -764,7 +765,7 @@ int InputSummary(const std::vector<FileMetaData*>& files,
     char sztxt[16];
     AppendHumanBytes(files.at(i)->fd.GetFileSize(), sztxt, 16);
     if (files_filtered.empty()) {
-      ret = snprintf(output + write, sz, "%" PRIu64 "(%s)",
+      ret = snprintf(output + write, sz, "%" PRIu64 "(%s) ",
                      files.at(i)->fd.GetNumber(), sztxt);
     } else {
       ret = snprintf(output + write, sz, "%" PRIu64 "(%s filtered:%s) ",
@@ -1026,32 +1027,29 @@ void Compaction::FilterInputsForCompactionIterator() {
   // higher sequence number for the same user key (without timestamp).
   assert(ucmp->timestamp_size() == 0);
   size_t num_input_levels = inputs_.size();
-  std::vector<std::tuple<Slice, Slice, SequenceNumber>>
-      standalone_range_tombstones_for_filtering;
+  FileMetaData* file_candidate = nullptr;
+  std::tuple<Slice, Slice, SequenceNumber> standalone_rangedel;
 
-  for (FileMetaData* fmeta : inputs_[0].files) {
-    if (!fmeta->FileIsStandAloneRangeTombstone()) {
-      continue;
-    }
-    SequenceNumber seqno = fmeta->fd.smallest_seqno;
-    if (!DataIsDefinitelyInSnapshot(seqno, earliest_snapshot_.value(),
-                                    snapshot_checker_)) {
-      continue;
-    }
-    standalone_range_tombstones_for_filtering.emplace_back(
-        fmeta->smallest.user_key(), fmeta->largest.user_key(),
-        fmeta->fd.smallest_seqno);
+  if (inputs_[0].level == 0) {
+    file_candidate = inputs_[0].files.back();
+  } else {
+    file_candidate = inputs_[0].files.front();
+  }
+  if (!file_candidate ||
+      !file_candidate->FileIsStandAloneRangeTombstone() ||
+      !DataIsDefinitelyInSnapshot(file_candidate->fd.smallest_seqno, earliest_snapshot_.value(), snapshot_checker_)) {
+     for (size_t level = 0; level < num_input_levels; level++) {
+        DoGenerateLevelFilesBrief(&input_levels_[level], inputs_[level].files,
+                       &arena_);
+     }
+     return;
+  } else {
+    standalone_rangedel = std::make_tuple(
+        file_candidate->smallest.user_key(),
+        file_candidate->largest.user_key(),
+        file_candidate->fd.smallest_seqno);
   }
 
-  assert(standalone_range_tombstones_for_filtering.empty() ||
-         standalone_range_tombstones_for_filtering.size() == 1);
-  if (standalone_range_tombstones_for_filtering.empty()) {
-    for (size_t level = 0; level < num_input_levels; level++) {
-      DoGenerateLevelFilesBrief(&input_levels_[level], inputs_[level].files,
-                                &arena_);
-    }
-    return;
-  }
   std::vector<std::vector<FileMetaData*>> non_start_level_input_files;
   non_start_level_input_files.reserve(num_input_levels - 1);
   non_start_level_input_files_filtered_.reserve(num_input_levels - 1);
@@ -1060,7 +1058,6 @@ void Compaction::FilterInputsForCompactionIterator() {
     non_start_level_input_files_filtered_.emplace_back();
     for (FileMetaData* file : inputs_[level].files) {
       non_start_level_input_files_filtered_.back().push_back(false);
-      auto standalone_rangedel = standalone_range_tombstones_for_filtering[0];
       // When range data and point data has the same sequence number, point
       // data wins.
       if (std::get<2>(standalone_rangedel) <= file->fd.largest_seqno) {
@@ -1073,6 +1070,9 @@ void Compaction::FilterInputsForCompactionIterator() {
           ucmp->CompareWithoutTimestamp(std::get<1>(standalone_rangedel),
                                         file->largest.user_key()) > 0) {
         non_start_level_input_files_filtered_.back().back() = true;
+        std::cout << "yuzhangyu_debug, filtered file smallest seqno: " << file->fd.smallest_seqno << " filtered file largest seqno: " << file->fd.largest_seqno
+        << " standalone range file smallest seqno: " << file_candidate->fd.smallest_seqno << " standalone range file largest seqno: " << file_candidate->fd.largest_seqno
+        << " earliest snapshot: " << earliest_snapshot_.value() << std::endl;
       }
       if (!non_start_level_input_files_filtered_.back().back()) {
         non_start_level_input_files.back().push_back(file);
