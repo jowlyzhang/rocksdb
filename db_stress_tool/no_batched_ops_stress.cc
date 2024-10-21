@@ -7,6 +7,8 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file. See the AUTHORS file for names of contributors.
 
+#include <iostream>
+
 #include "db/dbformat.h"
 #include "db_stress_tool/db_stress_listener.h"
 #include "db_stress_tool/db_stress_shared_state.h"
@@ -568,11 +570,9 @@ class NonBatchedOpsStressTest : public StressTest {
                                                     post_read_expected_value)) {
           thread->shared->SetVerificationFailure();
           fprintf(stderr,
-                  "error : inconsistent values for key %s (%" PRIi64
-                  "): Get returns %s, "
+                  "error : inconsistent values for key %s (%" PRIi64 "): Get returns %s, "
                   "but expected state is \"deleted\".\n",
-                  key.ToString(true).c_str(), rand_keys[0],
-                  StringToHex(from_db).c_str());
+                  key.ToString(true).c_str(), rand_keys[0], StringToHex(from_db).c_str());
         }
         Slice from_db_slice(from_db);
         uint32_t value_base_from_db = GetValueBase(from_db_slice);
@@ -581,12 +581,11 @@ class NonBatchedOpsStressTest : public StressTest {
                 post_read_expected_value)) {
           thread->shared->SetVerificationFailure();
           fprintf(stderr,
-                  "error : inconsistent values for key %s (%" PRIi64
-                  "): Get returns %s with "
+                  "error : inconsistent values for key %s (%" PRIi64 "): Get returns %s with "
                   "value base %d that falls out of expected state's value base "
                   "range.\n",
-                  key.ToString(true).c_str(), rand_keys[0],
-                  StringToHex(from_db).c_str(), value_base_from_db);
+                  key.ToString(true).c_str(), rand_keys[0], StringToHex(from_db).c_str(),
+                  value_base_from_db);
         }
       }
     } else if (s.IsNotFound()) {
@@ -597,8 +596,7 @@ class NonBatchedOpsStressTest : public StressTest {
                                                  post_read_expected_value)) {
           thread->shared->SetVerificationFailure();
           fprintf(stderr,
-                  "error : inconsistent values for key %s (%" PRIi64
-                  "): expected state has "
+                  "error : inconsistent values for key %s (%" PRIi64 "): expected state has "
                   "the key, Get() returns NotFound.\n",
                   key.ToString(true).c_str(), rand_keys[0]);
         }
@@ -1036,17 +1034,18 @@ class NonBatchedOpsStressTest : public StressTest {
           fprintf(stderr,
                   "error : inconsistent columns returned by GetEntity for key "
                   "%s (%" PRIi64 "): %s\n",
-                  StringToHex(key_str).c_str(), rand_keys[0],
+                  StringToHex(key_str).c_str(),
+                  rand_keys[0],
                   WideColumnsToHex(columns).c_str());
         } else if (ExpectedValueHelper::MustHaveNotExisted(
                        pre_read_expected_value, post_read_expected_value)) {
           shared->SetVerificationFailure();
-          fprintf(stderr,
-                  "error : inconsistent values for key %s (%" PRIi64
-                  "): GetEntity returns %s, "
-                  "expected state does not have the key.\n",
-                  StringToHex(key_str).c_str(), rand_keys[0],
-                  WideColumnsToHex(columns).c_str());
+          fprintf(
+              stderr,
+              "error : inconsistent values for key %s (%" PRIi64 "): GetEntity returns %s, "
+              "expected state does not have the key.\n",
+              StringToHex(key_str).c_str(),
+              rand_keys[0], WideColumnsToHex(columns).c_str());
         } else {
           const uint32_t value_base_from_db =
               GetValueBase(WideColumnsHelper::GetDefaultColumn(columns));
@@ -1056,12 +1055,12 @@ class NonBatchedOpsStressTest : public StressTest {
             shared->SetVerificationFailure();
             fprintf(
                 stderr,
-                "error : inconsistent values for key %s (%" PRIi64
-                "): GetEntity returns %s "
+                "error : inconsistent values for key %s (%" PRIi64 "): GetEntity returns %s "
                 "with value base %d that falls out of expected state's value "
                 "base range.\n",
-                StringToHex(key_str).c_str(), rand_keys[0],
-                WideColumnsToHex(columns).c_str(), value_base_from_db);
+                StringToHex(key_str).c_str(),
+                rand_keys[0], WideColumnsToHex(columns).c_str(),
+                value_base_from_db);
           }
         }
       }
@@ -1073,16 +1072,16 @@ class NonBatchedOpsStressTest : public StressTest {
                                                  post_read_expected_value)) {
           shared->SetVerificationFailure();
           fprintf(stderr,
-                  "error : inconsistent values for key %s (%" PRIi64
-                  "): expected state has "
+                  "error : inconsistent values for key %s (%" PRIi64 "): expected state has "
                   "the key, GetEntity returns NotFound.\n",
-                  StringToHex(key_str).c_str(), rand_keys[0]);
+                  StringToHex(key_str).c_str(),
+                  rand_keys[0]);
         }
       }
     } else if (injected_error_count == 0 || !IsErrorInjectedAndRetryable(s)) {
-      fprintf(stderr,
-              "error : GetEntity() returns %s for key: %s (%" PRIi64 ").\n",
-              s.ToString().c_str(), StringToHex(key_str).c_str(), rand_keys[0]);
+      fprintf(stderr, "error : GetEntity() returns %s for key: %s (%" PRIi64 ").\n",
+              s.ToString().c_str(), StringToHex(key_str).c_str(),
+              rand_keys[0]);
       thread->shared->SetVerificationFailure();
     }
   }
@@ -1736,6 +1735,8 @@ class NonBatchedOpsStressTest : public StressTest {
         thread->shared->SafeTerminate();
       }
     } else {
+      SequenceNumber seqno = db_->GetLatestSequenceNumber();
+      std::cout << "yuzhangyu_debug, TestPut for cf: " << rand_column_family << " key: " << rand_key << " with value: " << v.ToString(true) << " with seqno: " << seqno << std::endl;
       PrintWriteRecoveryWaitTimeIfNeeded(
           db_stress_env, initial_write_s, initial_wal_write_may_succeed,
           wait_for_recover_start_time, "TestPut");
@@ -1881,6 +1882,8 @@ class NonBatchedOpsStressTest : public StressTest {
           thread->shared->SafeTerminate();
         }
       } else {
+        SequenceNumber seqno = db_->GetLatestSequenceNumber();
+        std::cout << "yuzhangyu_debug, TestDelete for cf: " << rand_column_family << " key: " << rand_key  << " ,with seqno: " << seqno << std::endl;
         PrintWriteRecoveryWaitTimeIfNeeded(
             db_stress_env, initial_write_s, initial_wal_write_may_succeed,
             wait_for_recover_start_time, "TestDelete");
@@ -1974,6 +1977,8 @@ class NonBatchedOpsStressTest : public StressTest {
         thread->shared->SafeTerminate();
       }
     } else {
+      SequenceNumber seqno = db_->GetLatestSequenceNumber();
+      std::cout << "yuzhangyu_debug, TestDeleteRange for cf: " << rand_column_family << " from key: " << rand_key << " to key: " <<  rand_key + FLAGS_range_deletion_width << " ,with seqno: " << seqno << std::endl;
       PrintWriteRecoveryWaitTimeIfNeeded(
           db_stress_env, initial_write_s, initial_wal_write_may_succeed,
           wait_for_recover_start_time, "TestDeleteRange");
@@ -1990,20 +1995,21 @@ class NonBatchedOpsStressTest : public StressTest {
   void TestIngestExternalFile(ThreadState* thread,
                               const std::vector<int>& rand_column_families,
                               const std::vector<int64_t>& rand_keys) override {
+
+    // TODO(yuzhangyu): update this to be more realistic before submission.
     // When true, we create two sst files, the first one with regular puts for
     // a continuous range of keys, the second one with a standalone range
     // deletion for all the keys. This is to exercise the standalone range
     // deletion file's compaction input optimization.
-    bool test_standalone_range_deletion = thread->rand.OneInOpt(10);
+    bool test_standalone_range_deletion = thread->rand.OneInOpt(1);
     std::vector<std::string> external_files;
     const std::string sst_filename =
         FLAGS_db + "/." + std::to_string(thread->tid) + ".sst";
     external_files.push_back(sst_filename);
     std::string standalone_rangedel_filename;
     if (test_standalone_range_deletion) {
-      standalone_rangedel_filename = FLAGS_db + "/." +
-                                     std::to_string(thread->tid) +
-                                     "_standalone_rangedel.sst";
+      standalone_rangedel_filename =
+          FLAGS_db + "/." + std::to_string(thread->tid) + "_standalone_rangedel.sst";
       external_files.push_back(standalone_rangedel_filename);
     }
     Status s;
@@ -2036,14 +2042,12 @@ class NonBatchedOpsStressTest : public StressTest {
     }
 
     SstFileWriter sst_file_writer(EnvOptions(options_), options_);
-    SstFileWriter standalone_rangedel_sst_file_writer(EnvOptions(options_),
-                                                      options_);
+    SstFileWriter standalone_rangedel_sst_file_writer(EnvOptions(options_), options_);
     if (s.ok()) {
       s = sst_file_writer.Open(sst_filename);
     }
     if (s.ok() && test_standalone_range_deletion) {
-      s = standalone_rangedel_sst_file_writer.Open(
-          standalone_rangedel_filename);
+      s = standalone_rangedel_sst_file_writer.Open(standalone_rangedel_filename);
     }
     if (!s.ok()) {
       return;
@@ -2063,9 +2067,8 @@ class NonBatchedOpsStressTest : public StressTest {
 
     // Grab locks, add keys
     assert(FLAGS_nooverwritepercent < 100);
-    for (int64_t key = key_base;
-         key < shared->GetMaxKey() &&
-         key < key_base + FLAGS_ingest_external_file_width;
+    for (int64_t key = key_base; key < shared->GetMaxKey() &&
+                                 key < key_base + FLAGS_ingest_external_file_width;
          ++key) {
       if (key == key_base ||
           (key & ((1 << FLAGS_log2_keys_per_lock) - 1)) == 0) {
@@ -2103,7 +2106,7 @@ class NonBatchedOpsStressTest : public StressTest {
 
     // set pending state on expected values, create and ingest files.
     size_t total_keys = keys.size();
-    for (size_t i = 0; s.ok() && i < total_keys; i++) {
+    for (size_t i = 0; s.ok() && i < total_keys; i++ ) {
       int64_t key = keys.at(i);
       char value[100];
       auto key_str = Key(key);
@@ -2116,8 +2119,7 @@ class NonBatchedOpsStressTest : public StressTest {
         PendingExpectedValue pending_expected_value =
             shared->PreparePut(column_family, key);
         const uint32_t value_base = pending_expected_value.GetFinalValueBase();
-        const size_t value_len =
-            GenerateValue(value_base, value, sizeof(value));
+        const size_t value_len = GenerateValue(value_base, value, sizeof(value));
         v = Slice(value, value_len);
         values.push_back(value_base);
         pending_expected_values.push_back(pending_expected_value);
@@ -2130,21 +2132,29 @@ class NonBatchedOpsStressTest : public StressTest {
         }
       }
     }
-    if (s.ok() && !keys.empty()) {
+    if (total_keys != 0 && s.ok()) {
+      if (test_standalone_range_deletion) {
+        assert(pending_expected_values.empty());
+      } else {
+        assert(pending_expected_values.size() == total_keys);
+      }
       s = sst_file_writer.Finish();
+      //      if (s.ok()) {
+      //        std::cout << "yuzhangyu_debug, regular put start: " << keys.at(0) << " , end: " << keys.back() << std::endl;
+      //      }
     }
 
     if (s.ok() && total_keys != 0 && test_standalone_range_deletion) {
       int64_t start_key = keys.at(0);
       int64_t end_key = keys.back() + 1;
-      pending_expected_values =
-          shared->PrepareDeleteRange(column_family, start_key, end_key);
+      assert(pending_expected_values.empty());
+      pending_expected_values = shared->PrepareDeleteRange(column_family, start_key, end_key);
+      assert(pending_expected_values.size() == total_keys);
       auto start_key_str = Key(start_key);
       const Slice start_key_slice(start_key_str);
       auto end_key_str = Key(end_key);
       const Slice end_key_slice(end_key_str);
-      s = standalone_rangedel_sst_file_writer.DeleteRange(start_key_slice,
-                                                          end_key_slice);
+      s = standalone_rangedel_sst_file_writer.DeleteRange(start_key_slice, end_key_slice);
       if (s.ok()) {
         s = standalone_rangedel_sst_file_writer.Finish();
       }
@@ -2180,6 +2190,8 @@ class NonBatchedOpsStressTest : public StressTest {
         thread->shared->SafeTerminate();
       }
     } else {
+      SequenceNumber seqno = db_->GetLatestSequenceNumber();
+      std::cout << "yuzhangyu_debug, TestIngestions delete range for cf: " << column_family << " from key: " <<  keys.at(0) << " to key: " << keys.back() + 1 << " ,with seqno: " << seqno << std::endl;
       for (PendingExpectedValue& pending_expected_value :
            pending_expected_values) {
         pending_expected_value.Commit();
