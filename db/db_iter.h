@@ -24,12 +24,10 @@
 namespace ROCKSDB_NAMESPACE {
 class Version;
 
-// This file declares the factory functions of DBIter, in its original form
-// or a wrapped form with class ArenaWrappedDBIter, which is defined here.
-// Class DBIter, which is declared and implemented inside db_iter.cc, is
-// an iterator that converts internal keys (yielded by an InternalIterator)
-// that were live at the specified sequence number into appropriate user
-// keys.
+// Class DBIter is an iterator that converts internal keys (yielded by an
+// InternalIterator) that were live at the specified sequence number into
+// appropriate user keys. DBIter also has a wrapped form ArenaWrappedDBIter.
+//
 // Each internal key consists of a user key, a sequence number, and a value
 // type. DBIter deals with multiple key versions, tombstones, merge operands,
 // etc, and exposes an Iterator.
@@ -39,7 +37,7 @@ class Version;
 //    user key: AAA  value: v1   seqno: 95     type: Put
 //    user key: BBB  value: v1   seqno: 90     type: Put
 //    user key: BBC  value: N/A  seqno: 98     type: Delete
-//    user key: BBC  value: v1   seqno: 95     type: Put
+//    user key: BBC  value: v1   seqno: 94     type: Put
 // If the snapshot passed in is 102, then the DBIter is expected to
 // expose the following iterator:
 //    key: AAA  value: v3
@@ -379,60 +377,26 @@ class DBIter final : public Iterator {
     return true;
   }
 
-  const SliceTransform* prefix_extractor_;
+  //=== Const pointers to DB scoped objects ===//
   Env* const env_;
-  SystemClock* clock_;
-  Logger* logger_;
-  UserComparatorWrapper user_comparator_;
+  SystemClock* const clock_;
+  Logger* const logger_;
+  Statistics* const statistics_;
+  //=== End of const pointers to DB scoped objects ===//
+
+  //=== (Mostly) const configurations throughout DBIter's lifetime ===//
+  const ColumnFamilyHandleImpl* const cfh_;
+  const SliceTransform* const prefix_extractor_;
   const MergeOperator* const merge_operator_;
-  IteratorWrapper iter_;
-  BlobReader blob_reader_;
-  ReadCallback* read_callback_;
-  // Max visible sequence number. It is normally the snapshot seq unless we have
-  // uncommitted data in db as in WriteUnCommitted.
-  SequenceNumber sequence_;
 
-  IterKey saved_key_;
-  // Reusable internal key data structure. This is only used inside one function
-  // and should not be used across functions. Reusing this object can reduce
-  // overhead of calling construction of the function if creating it each time.
-  ParsedInternalKey ikey_;
-
-  // The approximate write time for the entry. It is deduced from the entry's
-  // sequence number if the seqno to time mapping is available. For a
-  // kTypeValuePreferredSeqno entry, this is the write time specified by the
-  // user.
-  uint64_t saved_write_unix_time_;
-  std::string saved_value_;
-  Slice pinned_value_;
-  // for prefix seek mode to support prev()
-  // Value of the default column
-  Slice value_;
-  // All columns (i.e. name-value pairs)
-  WideColumns wide_columns_;
-  Statistics* statistics_;
-  uint64_t max_skip_;
-  uint64_t max_skippable_internal_keys_;
-  uint64_t num_internal_keys_skipped_;
-  const Slice* iterate_lower_bound_;
-  const Slice* iterate_upper_bound_;
-
-  // The prefix of the seek key. It is only used when prefix_same_as_start_
-  // is true and prefix extractor is not null. In Next() or Prev(), current keys
-  // will be checked against this prefix, so that the iterator can be
-  // invalidated if the keys in this prefix has been exhausted. Set it using
-  // SetUserKey() and use it using GetUserKey().
-  IterKey prefix_;
-
-  Status status_;
-  Direction direction_;
-  bool valid_;
-  bool current_entry_is_merged_;
-  // True if we know that the current entry's seqnum is 0.
-  // This information is used as that the next entry will be for another
-  // user key.
-  bool is_key_seqnum_zero_;
+  const bool arena_mode_;
+  const Slice* const iterate_lower_bound_;
+  const Slice* const iterate_upper_bound_;
+  const Slice* const timestamp_ub_;
+  const Slice* const timestamp_lb_;
+  const size_t timestamp_size_;
   const bool prefix_same_as_start_;
+  const uint64_t max_skippable_internal_keys_;
   // Means that we will pin all data blocks we read as long the Iterator
   // is not deleted, will be true if ReadOptions::pin_data is true
   const bool pin_thru_lifetime_;
@@ -441,20 +405,89 @@ class DBIter final : public Iterator {
   const bool expect_total_order_inner_iter_;
   // Whether the iterator is allowed to expose blob references. Set to true when
   // the stacked BlobDB implementation is used, false otherwise.
-  bool expose_blob_index_;
-  bool allow_unprepared_value_;
+  const bool expose_blob_index_;
+  const bool allow_unprepared_value_;
+
+  ReadCallback* read_callback_;
+  // Max visible sequence number. It is normally the snapshot seq unless we have
+  // uncommitted data in db as in WriteUnCommitted.
+  SequenceNumber sequence_;
+  //=== End of (mostly) const configurations throughout DBIter's lifetime ===//
+
+  //=== DBIter owned util objects ===//
+  UserComparatorWrapper user_comparator_;
+  PinnedIteratorsManager pinned_iters_mgr_;
+  LocalStatistics local_stats_;
+  BlobReader blob_reader_;
+  //=== End of DBIter owned util objects ===//
+
+  //=== State tracking variables during iteration ===//
+  IteratorWrapper iter_;
+  Status status_;
+  Direction direction_;
+
+  bool valid_;
+  bool current_entry_is_merged_;
+
+  //=== Starting of key related state tracking variables ===//
+
+  // The prefix of the seek key. It is only used when prefix_same_as_start_
+  // is true and prefix extractor is not null. In Next() or Prev(), current keys
+  // will be checked against this prefix, so that the iterator can be
+  // invalidated if the keys in this prefix has been exhausted. Set it using
+  // SetUserKey() and use it using GetUserKey().
+  IterKey prefix_;
+
+  // TODO(yuzhangyu): documentation for this field, what exactly is it used for,
+  // it's used everywhere (84 instances) and there is no documentation for it.
+  // What is its purpose compared to variables like "ikey_", "ikey" etc. What
+  // necessiates its usage, etc.
+  IterKey saved_key_;
+  // TODO(yuzhangyu): consider grouping the key related variables and explain
+  // them together, with contrast to each other.
+  // Reusable internal key data structure. This is only used inside one function
+  // and should not be used across functions. Reusing this object can reduce
+  // overhead of calling construction of the function if creating it each time.
+  ParsedInternalKey ikey_;
+  // TODO(yuzhangyu): again, variable moved to be close its logic group, need
+  // some refactoring.
+  // True if we know that the current entry's seqnum is 0.
+  // This information is used as that the next entry will be for another
+  // user key.
+  bool is_key_seqnum_zero_;
+
+  std::string saved_timestamp_;
+
+  // The approximate write time for the entry. It is deduced from the entry's
+  // sequence number if the seqno to time mapping is available. For a
+  // kTypeValuePreferredSeqno entry, this is the write time specified by the
+  // user.
+  uint64_t saved_write_unix_time_;
+
+  //=== Starting of value related state tracking variables ===//
+
+  // TODO(yuzhangyu): documentation, we have saved_value_, pinned_value_, and
+  // value_, wide_columns_, what are their different needs.
+  std::string saved_value_;
+  Slice pinned_value_;
+  // for prefix seek mode to support prev()
+  // Value of the default column
+  Slice value_;
+  // All columns (i.e. name-value pairs)
+  WideColumns wide_columns_;
   Slice lazy_blob_index_;
   bool is_blob_;
-  bool arena_mode_;
   // List of operands for merge operator.
   MergeContext merge_context_;
-  LocalStatistics local_stats_;
-  PinnedIteratorsManager pinned_iters_mgr_;
-  ColumnFamilyHandleImpl* cfh_;
-  const Slice* const timestamp_ub_;
-  const Slice* const timestamp_lb_;
-  const size_t timestamp_size_;
-  std::string saved_timestamp_;
+
+  //=== Starting of internal key skips tracking variables ===//
+
+  // TODO(yuzhangyu): documentation, all variables related to skip, what is skip
+  // why/when do we skip, what each variable limits?
+  uint64_t max_skip_;
+  uint64_t num_internal_keys_skipped_;
+
+  //=== End of state tracking variables during iteration ===//
 };
 
 // Return a new iterator that converts internal keys (yielded by

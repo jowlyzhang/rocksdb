@@ -15,10 +15,22 @@
 #include "table/block_based/block_builder.h"
 #include "test_util/sync_point.h"
 #include "test_util/testutil.h"
+#include "util/coding.h"
 #include "utilities/fault_injection_env.h"
 #include "utilities/merge_operators/string_append/stringappend2.h"
 
+
+
 namespace ROCKSDB_NAMESPACE {
+
+namespace {
+  std::string EncodeAsUint64(uint64_t v) {
+    std::string dst;
+    PutFixed64(&dst, v);
+    return dst;
+  }
+}  // namespace
+
 class DBBasicTestWithTimestamp : public DBBasicTestWithTimestampBase {
  public:
   DBBasicTestWithTimestamp()
@@ -1530,6 +1542,60 @@ TEST_F(DBBasicTestWithTimestamp, MultiGetWithFastLocalBloom) {
                 timestamps.data(), statuses.data(), true);
   ASSERT_TRUE(statuses[0].IsNotFound());
   ASSERT_EQ(Timestamp(2, 0), timestamps[0]);
+
+  Close();
+}
+
+// Levi's reproduce steps.
+TEST_F(DBBasicTestWithTimestamp,
+       FIXME_ReverseIterationWithBlobAndUnpreparedValue) {
+  Options options = CurrentOptions();
+  options.create_if_missing = true;
+  options.env = env_;
+  options.enable_blob_files = true;
+  options.max_sequential_skip_in_iterations = 0;
+
+  options.comparator = test::BytewiseComparatorWithU64TsWrapper();
+
+  DestroyAndReopen(options);
+
+  constexpr int kMaxKey = 16;
+
+  for (int key = 0; key <= kMaxKey; ++key) {
+      ASSERT_OK(db_->Put(WriteOptions(), Key(key), EncodeAsUint64(1),
+                         "value" + std::to_string(0)));
+      ASSERT_OK(db_->Put(WriteOptions(), Key(key), EncodeAsUint64(3),
+                         "value" + std::to_string(1)));
+  }
+
+  ASSERT_OK(Flush());
+
+  {
+    const std::string read_timestamp_str = EncodeAsUint64(4);
+    const Slice read_timestamp(read_timestamp_str);
+
+    ReadOptions read_opts;
+    read_opts.timestamp = &read_timestamp;
+//    read_opts.allow_unprepared_value = true;
+
+    std::unique_ptr<Iterator> it(db_->NewIterator(read_opts));
+
+//    it->SeekForPrev(Key(kMaxKey));
+//    ASSERT_TRUE(it->Valid());
+//    ASSERT_OK(it->status());
+//
+//    // FIXME: PrepareValue() should succeed and status() should remain OK
+//    ASSERT_FALSE(it->PrepareValue());
+//    ASSERT_TRUE(it->status().IsCorruption());
+    it->SeekToLast();
+    while (it->Valid() && it->status().ok()) {
+//      ASSERT_TRUE(it->PrepareValue());
+      uint64_t ts = 0;
+      ASSERT_OK(DecodeU64Ts(it->timestamp(), &ts));
+      std::cout << "key: " << it->key().ToString() << ", timestamp: " << ts << std::endl;
+      it->Prev();
+    }
+  }
 
   Close();
 }
