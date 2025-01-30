@@ -2074,6 +2074,10 @@ TEST_P(ColumnFamilyTest, ReadOnlyDBTest) {
   Close();
   // open only a subset of column families
   AssertOpenReadOnly({"default", "one", "four"});
+  ColumnFamilyHandle* cfh;
+  ColumnFamilyOptions cf_opts;
+  ASSERT_OK(db_->CreateColumnFamily(cf_opts, "aha", &cfh));
+  ASSERT_OK(db_->DestroyColumnFamilyHandle(cfh));
   ASSERT_EQ("NOT_FOUND", Get(0, "foo"));
   ASSERT_EQ("bla", Get(1, "foo"));
   ASSERT_EQ("blablablabla", Get(2, "foo"));
