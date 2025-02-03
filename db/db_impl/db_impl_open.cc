@@ -7,6 +7,7 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file. See the AUTHORS file for names of contributors.
 #include <cinttypes>
+#include <iostream>
 
 #include "db/builder.h"
 #include "db/db_impl/db_impl.h"
@@ -1337,6 +1338,9 @@ Status DBImpl::RecoverLogFiles(const std::vector<uint64_t>& wal_numbers,
           &trim_history_scheduler_, true, wal_number, this,
           false /* concurrent_memtable_writes */, next_sequence,
           &has_valid_writes, seq_per_batch_, batch_per_txn_);
+      std::cout << "yuzhangyu_debug, insert write batch to memtable with seqnum: " << WriteBatchInternal::Sequence(batch_to_use)
+          << ", and count: " << WriteBatchInternal::Count(batch_to_use) << ", status: " << status.ToString()
+                << ", next sequence: " << *next_sequence << std::endl;
       MaybeIgnoreError(&status);
       if (!status.ok()) {
         // We are treating this as a failure while reading since we read valid
@@ -1399,6 +1403,7 @@ Status DBImpl::RecoverLogFiles(const std::vector<uint64_t>& wal_numbers,
         status = Status::OK();
         old_log_record = false;
         stop_replay_for_corruption = true;
+        std::cout << "yuzhangyu_debug, found corrupted wal number: " << wal_number << std::endl;
         corrupted_wal_number = wal_number;
         if (corrupted_wal_found != nullptr) {
           *corrupted_wal_found = true;
@@ -1419,6 +1424,8 @@ Status DBImpl::RecoverLogFiles(const std::vector<uint64_t>& wal_numbers,
     flush_scheduler_.Clear();
     trim_history_scheduler_.Clear();
     auto last_sequence = *next_sequence - 1;
+    std::cout << "yuzhangyu_debug, next_sequence: " << *next_sequence << std::endl;
+    std::cout << "yuzhangyu_debug, vs last sequence: " << versions_->LastSequence() << std::endl;
     if ((*next_sequence != kMaxSequenceNumber) &&
         (versions_->LastSequence() <= last_sequence)) {
       versions_->SetLastAllocatedSequence(last_sequence);

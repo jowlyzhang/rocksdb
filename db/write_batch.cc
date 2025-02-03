@@ -47,6 +47,7 @@
 #include <type_traits>
 #include <unordered_map>
 #include <vector>
+#include <iostream>
 
 #include "db/column_family.h"
 #include "db/db_impl/db_impl.h"

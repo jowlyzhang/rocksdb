@@ -10,6 +10,7 @@
 #include <sstream>
 #include <unordered_map>
 #include <vector>
+#include <iostream>
 
 #include "db/wide/wide_column_serialization.h"
 #include "db/write_batch_internal.h"
@@ -135,13 +136,23 @@ class TimestampRecoveryHandler : public WriteBatch::Handler {
   Status PutBlobIndexCF(uint32_t cf, const Slice& key,
                         const Slice& value) override;
 
-  Status MarkBeginPrepare(bool) override { return Status::OK(); }
+  Status MarkBeginPrepare(bool) override {
+    return Status::OK();
+  }
 
-  Status MarkEndPrepare(const Slice&) override { return Status::OK(); }
+  Status MarkEndPrepare(const Slice& xid) override {
+    std::cout << "yuzhangyu_debug, encountered prepare record for xid: " << xid.ToString() << std::endl;
+    return Status::OK();
+  }
 
-  Status MarkCommit(const Slice&) override { return Status::OK(); }
+  Status MarkCommit(const Slice& xid) override {
+    std::cout << "yuzhangyu_debug, encountered commit record for xid: " << xid.ToString() << std::endl;
+    return Status::OK();
+  }
 
-  Status MarkCommitWithTimestamp(const Slice&, const Slice&) override {
+  Status MarkCommitWithTimestamp(const Slice& xid, const Slice& /* ts */) override {
+
+    std::cout << "yuzhangyu_debug, encountered commit record for xid: " << xid.ToString() << std::endl;
     return Status::OK();
   }
 

@@ -3,6 +3,8 @@
 //  COPYING file in the root directory) and Apache 2.0 License
 //  (found in the LICENSE.Apache file in the root directory).
 
+#include <iostream>
+
 #include "rocksdb/comparator.h"
 #include "rocksdb/db.h"
 #include "rocksdb/options.h"
@@ -568,6 +570,78 @@ TEST_P(WriteCommittedTxnWithTsTest, Merge) {
     ASSERT_EQ("bar,1", value);
   }
 }
+
+TEST_P(WriteCommittedTxnWithTsTest, PartialWriteBatchInsertedWithTheBug) {
+  // This feature is not compatible with UDT in memtable only.
+  options.allow_concurrent_memtable_write = false;
+  ASSERT_OK(ReOpenNoDelete());
+
+  ColumnFamilyOptions cf_opts;
+  cf_opts.comparator = test::BytewiseComparatorWithU64TsWrapper();
+  cf_opts.persist_user_defined_timestamps = false;
+  const std::string test_cf_name = "test_cf";
+  ColumnFamilyHandle* cfh = nullptr;
+  assert(db);
+  ASSERT_OK(db->CreateColumnFamily(cf_opts, test_cf_name, &cfh));
+  delete cfh;
+  cfh = nullptr;
+
+  std::vector<ColumnFamilyDescriptor> cf_descs;
+  cf_descs.emplace_back(kDefaultColumnFamilyName, options);
+  cf_descs.emplace_back(test_cf_name, cf_opts);
+  options.avoid_flush_during_shutdown = true;
+  ASSERT_OK(ReOpenNoDelete(cf_descs, &handles_));
+
+  std::unique_ptr<Transaction> prepared_but_uncommitted_txn(
+      NewTxn(WriteOptions(), TransactionOptions()));
+  ASSERT_NE(nullptr, prepared_but_uncommitted_txn);
+  ASSERT_OK(prepared_but_uncommitted_txn->Put("bar0", "bar_value_0"));
+  ASSERT_OK(
+      prepared_but_uncommitted_txn->Put(handles_[1], "bar1", "bar_value_1"));
+  ASSERT_OK(
+      prepared_but_uncommitted_txn->SetName("prepared_but_uncommitted_txn"));
+  ASSERT_OK(prepared_but_uncommitted_txn->Prepare());
+  // Comment out these two lines can show different results too.
+  ASSERT_OK(prepared_but_uncommitted_txn->SetCommitTimestamp(3));
+  ASSERT_OK(prepared_but_uncommitted_txn->Commit());
+  // Below prints with this line of flush:
+  // yuzhangyu_debug, status for bar0: OK
+  // yuzhangyu_debug, status for bar1: NotFound:
+//  ASSERT_OK(db->GetBaseDB()->Flush(FlushOptions(), handles_[1]));
+
+  prepared_but_uncommitted_txn.reset();
+
+  // Reopen and disable UDT to replay WAL entries.
+  cf_descs[1].options.comparator = BytewiseComparator();
+  ASSERT_OK(ReOpenNoDelete(cf_descs, &handles_));
+
+  {
+    std::string value;
+
+    ASSERT_OK(db->GetBaseDB()->Put(WriteOptions(), "bar0", "bar_value_01"));
+    ASSERT_OK(db->GetBaseDB()->Delete(WriteOptions(), handles_[1], "bar1"));
+    // Try this: Instead of using Put, use Delete, it's a different and will
+    // be considered a different internal key
+    //  ASSERT_OK(db->GetBaseDB()->Put(WriteOptions(), handles_[1], "bar1", "bar_value_11"));
+
+    ASSERT_OK(db->GetBaseDB()->Flush(FlushOptions()));
+    ASSERT_OK(db->GetBaseDB()->Flush(FlushOptions(), handles_[1]));
+    // The results read back could be different before and after the compaction.
+    Status s = db->Get(ReadOptions(), handles_[0], "bar0", &value);
+    std::cout << "yuzhangyu_debug, status for bar0 before compaction: " << s.ToString() << ", value: " << value << std::endl;
+    value.clear();
+    s = db->Get(ReadOptions(), handles_[1], "bar1", &value);
+    std::cout << "yuzhangyu_debug, status for bar1: " << s.ToString() << ", value: " << value << std::endl;
+    ASSERT_OK(db->GetBaseDB()->CompactRange(CompactRangeOptions(), nullptr, nullptr));
+    ASSERT_OK(db->GetBaseDB()->CompactRange(CompactRangeOptions(), handles_[1], nullptr, nullptr));
+    s = db->Get(ReadOptions(), handles_[0], "bar0", &value);
+    std::cout << "yuzhangyu_debug, status for bar0 after compaction: " << s.ToString() << ", value: " << value << std::endl;
+    value.clear();
+    s = db->Get(ReadOptions(), handles_[1], "bar1", &value);
+    std::cout << "yuzhangyu_debug, status for bar1 after compaction: " << s.ToString() << ", value: " << value << std::endl;
+  }
+}
+
 
 TEST_P(WriteCommittedTxnWithTsTest, GetForUpdate) {
   ASSERT_OK(ReOpenNoDelete());
