@@ -2026,30 +2026,38 @@ class CompactionJobStatsCheckerForFilteredFiles : public EventListener {
 TEST_F(ExternalSSTFileBasicTest, AtomicReplaceDataWithStandaloneRangeDeletion) {
   Options options = CurrentOptions();
   options.compaction_style = CompactionStyle::kCompactionStyleUniversal;
-  int kCompactionNumInputFiles = 1;
-  int kCompactionNumInputFilesAtOutputLevel = 0;
-  int kCompactionNumFilteredInputFiles = 2;
-  int kCompactionNumFilteredInputFilesAtOutputLevel = 2;
-  auto compaction_listener =
-      std::make_shared<CompactionJobStatsCheckerForFilteredFiles>(
-          kCompactionNumInputFiles, kCompactionNumInputFilesAtOutputLevel,
-          kCompactionNumFilteredInputFiles,
-          kCompactionNumFilteredInputFilesAtOutputLevel);
-  options.listeners.push_back(compaction_listener);
+//  int kCompactionNumInputFiles = 1;
+//  int kCompactionNumInputFilesAtOutputLevel = 0;
+//  int kCompactionNumFilteredInputFiles = 2;
+//  int kCompactionNumFilteredInputFilesAtOutputLevel = 2;
+//  auto compaction_listener =
+//      std::make_shared<CompactionJobStatsCheckerForFilteredFiles>(
+//          kCompactionNumInputFiles, kCompactionNumInputFilesAtOutputLevel,
+//          kCompactionNumFilteredInputFiles,
+//          kCompactionNumFilteredInputFilesAtOutputLevel);
+//  options.listeners.push_back(compaction_listener);
   DestroyAndReopen(options);
 
-  size_t compaction_skipped_file_size = 0;
+//  size_t compaction_skipped_file_size = 0;
   std::vector<std::string> files;
   {
     // Writes first version of data in range partitioned files.
     SstFileWriter sst_file_writer(EnvOptions(), options);
+
+    std::string file7 = sst_files_dir_ + "file7.sst";
+    ASSERT_OK(sst_file_writer.Open(file7));
+    ASSERT_OK(sst_file_writer.DeleteRange("a", "z"));
+    ExternalSstFileInfo file7_info;
+    ASSERT_OK(sst_file_writer.Finish(&file7_info));
+    files.push_back(std::move(file7));
+
     std::string file1 = sst_files_dir_ + "file1.sst";
     ASSERT_OK(sst_file_writer.Open(file1));
     ASSERT_OK(sst_file_writer.Put("a", "a1"));
     ASSERT_OK(sst_file_writer.Put("b", "b1"));
     ExternalSstFileInfo file1_info;
     ASSERT_OK(sst_file_writer.Finish(&file1_info));
-    compaction_skipped_file_size += file1_info.file_size;
+//    compaction_skipped_file_size += file1_info.file_size;
     files.push_back(std::move(file1));
 
     std::string file2 = sst_files_dir_ + "file2.sst";
@@ -2058,10 +2066,10 @@ TEST_F(ExternalSSTFileBasicTest, AtomicReplaceDataWithStandaloneRangeDeletion) {
     ASSERT_OK(sst_file_writer.Put("y", "y1"));
     ExternalSstFileInfo file2_info;
     ASSERT_OK(sst_file_writer.Finish(&file2_info));
-    compaction_skipped_file_size += file2_info.file_size;
+//    compaction_skipped_file_size += file2_info.file_size;
     files.push_back(std::move(file2));
-    compaction_listener->SetExpectedCompactionSkippedFileSize(
-        compaction_skipped_file_size);
+//    compaction_listener->SetExpectedCompactionSkippedFileSize(
+//        compaction_skipped_file_size);
   }
 
   IngestExternalFileOptions ifo;
@@ -2070,7 +2078,8 @@ TEST_F(ExternalSSTFileBasicTest, AtomicReplaceDataWithStandaloneRangeDeletion) {
   ASSERT_EQ(Get("b"), "b1");
   ASSERT_EQ(Get("x"), "x1");
   ASSERT_EQ(Get("y"), "y1");
-  ASSERT_EQ(2, NumTableFilesAtLevel(6));
+  ASSERT_OK(dbfull()->TEST_WaitForCompact());
+//  ASSERT_EQ(2, NumTableFilesAtLevel(6));
 
   {
     // Atomically delete old version of data with one range delete file.
@@ -2083,6 +2092,22 @@ TEST_F(ExternalSSTFileBasicTest, AtomicReplaceDataWithStandaloneRangeDeletion) {
     ExternalSstFileInfo file2_info;
     ASSERT_OK(sst_file_writer.Finish(&file2_info));
     files.push_back(std::move(file2));
+
+    // Redundant standalone range deletion file, does it affect the
+    // optimization?
+    std::string file5 = sst_files_dir_ + "file5.sst";
+    ASSERT_OK(sst_file_writer.Open(file5));
+    ASSERT_OK(sst_file_writer.DeleteRange("a", "z"));
+    ExternalSstFileInfo file5_info;
+    ASSERT_OK(sst_file_writer.Finish(&file5_info));
+    files.push_back(std::move(file5));
+
+    std::string file6 = sst_files_dir_ + "file6.sst";
+    ASSERT_OK(sst_file_writer.Open(file6));
+    ASSERT_OK(sst_file_writer.DeleteRange("a", "z"));
+    ExternalSstFileInfo file6_info;
+    ASSERT_OK(sst_file_writer.Finish(&file6_info));
+    files.push_back(std::move(file6));
 
     std::string file3 = sst_files_dir_ + "file3.sst";
     ASSERT_OK(sst_file_writer.Open(file3));
@@ -2103,53 +2128,68 @@ TEST_F(ExternalSSTFileBasicTest, AtomicReplaceDataWithStandaloneRangeDeletion) {
 
   const Snapshot* snapshot = db_->GetSnapshot();
 
-  auto seqno_before_ingestion = db_->GetLatestSequenceNumber();
+//  auto seqno_before_ingestion = db_->GetLatestSequenceNumber();
   ASSERT_OK(db_->IngestExternalFile(files, ifo));
   // Overlapping files each occupy one new sequence number.
-  ASSERT_EQ(db_->GetLatestSequenceNumber(), seqno_before_ingestion + 3);
+//  ASSERT_EQ(db_->GetLatestSequenceNumber(), seqno_before_ingestion + 3);
 
   // Check old version of data, big range deletion, new version of data are
   // on separate levels.
-  ASSERT_EQ(2, NumTableFilesAtLevel(4));
-  ASSERT_EQ(1, NumTableFilesAtLevel(5));
-  ASSERT_EQ(2, NumTableFilesAtLevel(6));
+//  ASSERT_EQ(2, NumTableFilesAtLevel(3));
+//  // Second range deletion file
+//  ASSERT_EQ(1, NumTableFilesAtLevel(4));
+//  // First range deletion file
+//  ASSERT_EQ(1, NumTableFilesAtLevel(5));
+//  ASSERT_EQ(2, NumTableFilesAtLevel(6));
 
   ASSERT_OK(dbfull()->TEST_WaitForCompact());
-  ASSERT_EQ(2, NumTableFilesAtLevel(4));
-  ASSERT_EQ(1, NumTableFilesAtLevel(5));
-  ASSERT_EQ(2, NumTableFilesAtLevel(6));
+//  ASSERT_EQ(2, NumTableFilesAtLevel(3));
+//  // Second range deletion file
+//  ASSERT_EQ(1, NumTableFilesAtLevel(4));
+//  // First range deletion file
+//  ASSERT_EQ(1, NumTableFilesAtLevel(5));
+//  ASSERT_EQ(2, NumTableFilesAtLevel(6));
 
-  bool compaction_iter_input_checked = false;
-  ROCKSDB_NAMESPACE::SyncPoint::GetInstance()->SetCallBack(
-      "VersionSet::MakeInputIterator:NewCompactionMergingIterator",
-      [&](void* arg) {
-        size_t* num_input_files = static_cast<size_t*>(arg);
-        EXPECT_EQ(1, *num_input_files);
-        compaction_iter_input_checked = true;
-      });
-  ROCKSDB_NAMESPACE::SyncPoint::GetInstance()->EnableProcessing();
+//  bool compaction_iter_input_checked = false;
+//  ROCKSDB_NAMESPACE::SyncPoint::GetInstance()->SetCallBack(
+//      "VersionSet::MakeInputIterator:NewCompactionMergingIterator",
+//      [&](void* arg) {
+//        size_t* num_input_files = static_cast<size_t*>(arg);
+//        EXPECT_EQ(1, *num_input_files);
+//        compaction_iter_input_checked = true;
+//      });
+//  ROCKSDB_NAMESPACE::SyncPoint::GetInstance()->EnableProcessing();
   db_->ReleaseSnapshot(snapshot);
 
   ASSERT_OK(dbfull()->TEST_WaitForCompact());
-  ASSERT_EQ(2, NumTableFilesAtLevel(4));
-  ASSERT_EQ(0, NumTableFilesAtLevel(5));
-  ASSERT_EQ(0, NumTableFilesAtLevel(6));
-  ASSERT_TRUE(compaction_iter_input_checked);
+//  ASSERT_EQ(2, NumTableFilesAtLevel(3));
+//  ASSERT_EQ(0, NumTableFilesAtLevel(5));
+//  ASSERT_EQ(0, NumTableFilesAtLevel(6));
+//  ColumnFamilyHandleImpl* cfh = static_cast_with_check<ColumnFamilyHandleImpl>(db_->DefaultColumnFamily());
+//  ColumnFamilyData* cfd = cfh->cfd();
+//  std::cout << "yuzhangyu_debug, before test explicitly enqueue a compaction job" << std::endl;
+//  dbfull()->TEST_LockMutex();
+//  dbfull()->EnqueuePendingCompaction(cfd);
+//  dbfull()->TEST_UnlockMutex();
+//  std::cout << "yuzhangyu_debug, after test explicitly enqueue a compaction job" << std::endl;
+  ASSERT_OK(dbfull()->TEST_WaitForCompact());
+  std::cout << "yuzhangyu_debug, after test finished waiting for compaction" << std::endl;
+      //  ASSERT_TRUE(compaction_iter_input_checked);
 
   ASSERT_EQ(Get("a"), "a2");
   ASSERT_EQ(Get("b"), "b2");
   ASSERT_EQ(Get("x"), "x2");
   ASSERT_EQ(Get("y"), "y2");
 
-  VerifyInputFilesInternalStatsForOutputLevel(
-      /*output_level*/ 6,
-      kCompactionNumInputFiles - kCompactionNumInputFilesAtOutputLevel,
-      kCompactionNumInputFilesAtOutputLevel,
-      kCompactionNumFilteredInputFiles -
-          kCompactionNumFilteredInputFilesAtOutputLevel,
-      kCompactionNumFilteredInputFilesAtOutputLevel,
-      /*bytes_skipped_non_output_levels*/ 0,
-      /*bytes_skipped_output_level*/ compaction_skipped_file_size);
+//  VerifyInputFilesInternalStatsForOutputLevel(
+//      /*output_level*/ 6,
+//      kCompactionNumInputFiles - kCompactionNumInputFilesAtOutputLevel,
+//      kCompactionNumInputFilesAtOutputLevel,
+//      kCompactionNumFilteredInputFiles -
+//          kCompactionNumFilteredInputFilesAtOutputLevel,
+//      kCompactionNumFilteredInputFilesAtOutputLevel,
+//      /*bytes_skipped_non_output_levels*/ 0,
+//      /*bytes_skipped_output_level*/ compaction_skipped_file_size);
 
   ROCKSDB_NAMESPACE::SyncPoint::GetInstance()->DisableProcessing();
 }

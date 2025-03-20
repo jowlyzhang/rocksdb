@@ -10,6 +10,7 @@
 #include <string>
 #include <unordered_set>
 #include <vector>
+#include <iostream>
 
 #include "db/db_impl/db_impl.h"
 #include "db/version_edit.h"
@@ -533,6 +534,7 @@ Status ExternalSstFileIngestionJob::AssignLevelsForOneBatch(
         file->table_properties.num_range_deletions == 1 &&
         (file->table_properties.num_entries ==
          file->table_properties.num_range_deletions);
+    std::cout << "yuzhangyu_debug, file: " << file->fd.GetNumber() << " is marked for compaction: " << marked_for_compaction << std::endl;
     FileMetaData f_metadata(
         file->fd.GetNumber(), file->fd.GetPathId(), file->fd.GetFileSize(),
         file->smallest_internal_key, file->largest_internal_key,

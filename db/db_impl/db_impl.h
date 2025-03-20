@@ -282,6 +282,7 @@ class DBImpl : public DB {
     get_impl_options.get_value = false;
     return GetImpl(options, key, get_impl_options);
   }
+  void EnqueuePendingCompaction(ColumnFamilyData* cfd);
 
   using DB::MultiGet;
   // This MultiGet is a batched version, which may be faster than calling Get
@@ -2395,7 +2396,6 @@ class DBImpl : public DB {
   // Returns true if `req` is successfully enqueued.
   bool EnqueuePendingFlush(const FlushRequest& req);
 
-  void EnqueuePendingCompaction(ColumnFamilyData* cfd);
   void SchedulePendingPurge(std::string fname, std::string dir_to_sync,
                             FileType type, uint64_t number, int job_id);
   static void BGWorkCompaction(void* arg);

@@ -14,6 +14,7 @@
 #include <queue>
 #include <string>
 #include <utility>
+#include <iostream>
 
 #include "db/column_family.h"
 #include "file/filename.h"
@@ -403,13 +404,17 @@ bool UniversalCompactionBuilder::IsInputFilesNonOverlapping(Compaction* c) {
 bool UniversalCompactionPicker::NeedsCompaction(
     const VersionStorageInfo* vstorage) const {
   const int kLevel0 = 0;
+  std::cout << "yuzhangyu_debug, check needs compaction " << std::endl;
   if (vstorage->CompactionScore(kLevel0) >= 1) {
+    std::cout << "yuzhangyu_debug, score indicates compaction is needed " << std::endl;
     return true;
   }
   if (!vstorage->FilesMarkedForPeriodicCompaction().empty()) {
+    std::cout << "yuzhangyu_debug, some files are marked for periodic compaction " << std::endl;
     return true;
   }
   if (!vstorage->FilesMarkedForCompaction().empty()) {
+    std::cout << "yuzhangyu_debug, some files are marked for compaction " << std::endl;
     return true;
   }
   return false;
@@ -518,10 +523,13 @@ UniversalCompactionBuilder::CalculateSortedRuns(
 bool UniversalCompactionBuilder::ShouldSkipMarkedFile(
     const FileMetaData* file) const {
   assert(file->marked_for_compaction);
+  uint64_t file_number = file->fd.GetNumber();
   if (!earliest_snapshot_.has_value()) {
+    std::cout << "yuzhangyu_debug, file: " << file_number << " is not skipped because there is no snapshot. " << std::endl;
     return false;
   }
   if (!file->FileIsStandAloneRangeTombstone()) {
+    std::cout << "yuzhangyu_debug, file: " << file_number << " is not skipped because it's not a standalone range deletion file. " << std::endl;
     return false;
   }
   // Skip until earliest snapshot advances at or above this standalone range
@@ -530,6 +538,7 @@ bool UniversalCompactionBuilder::ShouldSkipMarkedFile(
   if (!DataIsDefinitelyInSnapshot(file->fd.largest_seqno,
                                   earliest_snapshot_.value(),
                                   snapshot_checker_)) {
+    std::cout << "yuzhangyu_debug, file: " << file_number << " is skipped until snapshot advanced to beyond this stand alone range deletion file" << std::endl;
     return true;
   }
 
@@ -543,9 +552,11 @@ bool UniversalCompactionBuilder::ShouldSkipMarkedFile(
   // input level. Skip to let that compaction happen first.
   if (succeeding_sorted_run &&
       succeeding_sorted_run->level_has_marked_standalone_rangedel) {
+    std::cout << "yuzhangyu_debug, file: " << file_number << " is skipped because this range deletion file is not in starting sorted run" << std::endl;
     return true;
   }
 
+  std::cout << "yuzhangyu_debug, file: " << file_number << " is not skipped. " << std::endl;
   return false;
 }
 
@@ -570,6 +581,7 @@ Compaction* UniversalCompactionBuilder::PickCompaction() {
                      cf_name_.c_str());
     TEST_SYNC_POINT_CALLBACK(
         "UniversalCompactionBuilder::PickCompaction:Return", nullptr);
+    std::cout << "yuzhangyu_debug, universal pick compaction fast return for nothing to pick" << std::endl;
     return nullptr;
   }
   VersionStorageInfo::LevelSummaryStorage tmp;
@@ -583,6 +595,7 @@ Compaction* UniversalCompactionBuilder::PickCompaction() {
   // because it's a hard requirement.
   if (!vstorage_->FilesMarkedForPeriodicCompaction().empty()) {
     // Always need to do a full compaction for periodic compaction.
+    std::cout << "yuzhangyu_debug, universal compaction before picking periodic compaction" << std::endl;
     c = PickPeriodicCompaction();
     TEST_SYNC_POINT_CALLBACK("PostPickPeriodicCompaction", c);
   }
@@ -590,6 +603,7 @@ Compaction* UniversalCompactionBuilder::PickCompaction() {
   if (c == nullptr &&
       sorted_runs_.size() >= static_cast<size_t>(file_num_compaction_trigger)) {
     // Check for size amplification.
+    std::cout << "yuzhangyu_debug, universal compaction before picking size amp compaction" << std::endl;
     if ((c = PickCompactionToReduceSizeAmp()) != nullptr) {
       TEST_SYNC_POINT("PickCompactionToReduceSizeAmpReturnNonnullptr");
       ROCKS_LOG_BUFFER(log_buffer_, "[%s] Universal: compacting for size amp\n",
@@ -599,7 +613,7 @@ Compaction* UniversalCompactionBuilder::PickCompaction() {
       // amplification while maintaining file size ratios.
       unsigned int ratio =
           mutable_cf_options_.compaction_options_universal.size_ratio;
-
+      std::cout << "yuzhangyu_debug, universal compaction before picking sorted run compaction" << std::endl;
       if ((c = PickCompactionToReduceSortedRuns(ratio, UINT_MAX)) != nullptr) {
         TEST_SYNC_POINT("PickCompactionToReduceSortedRunsReturnNonnullptr");
         ROCKS_LOG_BUFFER(log_buffer_,
@@ -685,6 +699,7 @@ Compaction* UniversalCompactionBuilder::PickCompaction() {
   }
 
   if (c == nullptr) {
+    std::cout << "yuzhangyu_debug, universal compaction before picking deletion triggered compaction" << std::endl;
     if ((c = PickDeleteTriggeredCompaction()) != nullptr) {
       TEST_SYNC_POINT("PickDeleteTriggeredCompactionReturnNonnullptr");
       ROCKS_LOG_BUFFER(log_buffer_,
@@ -694,6 +709,7 @@ Compaction* UniversalCompactionBuilder::PickCompaction() {
   }
 
   if (c == nullptr) {
+    std::cout << "yuzhangyu_debug, universal compaction nothing picked eventually" << std::endl;
     TEST_SYNC_POINT_CALLBACK(
         "UniversalCompactionBuilder::PickCompaction:Return", nullptr);
     return nullptr;
@@ -1367,6 +1383,7 @@ Compaction* UniversalCompactionBuilder::PickDeleteTriggeredCompaction() {
   int output_level;
   std::vector<CompactionInputFiles> inputs;
   std::vector<FileMetaData*> grandparents;
+  std::cout << "yuzhangyu_debug, attempt to pick files marked for compaction" << std::endl;
 
   if (vstorage_->num_levels() == 1) {
     // This is single level universal. Since we're basically trying to reclaim
@@ -1439,6 +1456,10 @@ Compaction* UniversalCompactionBuilder::PickDeleteTriggeredCompaction() {
     // If all higher levels are empty, pick the highest level as output level
     if (output_level > max_output_level) {
       if (start_level == 0) {
+        output_level = max_output_level;
+      } else if (start_level_inputs.files.size() == 1 && start_level_inputs.files[0]->FileIsStandAloneRangeTombstone()) {
+        // If start level has a standalone range deletion file, we can pick
+        // a compaction to completely remove it.
         output_level = max_output_level;
       } else {
         // If start level is non-zero and all higher levels are empty, this

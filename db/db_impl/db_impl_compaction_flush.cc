@@ -8,6 +8,7 @@
 // found in the LICENSE file. See the AUTHORS file for names of contributors.
 #include <cinttypes>
 #include <deque>
+#include <iostream>
 
 #include "db/builder.h"
 #include "db/db_impl/db_impl.h"
@@ -2923,6 +2924,10 @@ void DBImpl::MaybeScheduleFlushOrCompaction() {
     ca->prepicked_compaction = nullptr;
     bg_compaction_scheduled_++;
     unscheduled_compactions_--;
+    std::cout << "yuzhangyu_debug, unscheduled_compactions_ decreased to: "
+                 << unscheduled_compactions_
+                     << ", bg_compaction_scheduled_ increased to: "
+                 << bg_compaction_scheduled_ << std::endl;
     env_->Schedule(&DBImpl::BGWorkCompaction, ca, Env::Priority::LOW, this,
                    &DBImpl::UnscheduleCompactionCallback);
   }
@@ -2965,6 +2970,7 @@ void DBImpl::AddToCompactionQueue(ColumnFamilyData* cfd) {
   compaction_queue_.push_back(cfd);
   cfd->set_queued_for_compaction(true);
   ++unscheduled_compactions_;
+  std::cout << "yuzhangyu_debug, unscheduled compactions becoming: " << unscheduled_compactions_ << std::endl;
 }
 
 ColumnFamilyData* DBImpl::PopFirstFromCompactionQueue() {
@@ -3064,6 +3070,7 @@ void DBImpl::EnqueuePendingCompaction(ColumnFamilyData* cfd) {
   if (!cfd->queued_for_compaction() && cfd->NeedsCompaction()) {
     TEST_SYNC_POINT_CALLBACK("EnqueuePendingCompaction::cfd",
                              static_cast<void*>(cfd));
+    std::cout << "yuzhangyu_debug, enqueued an unscheduled pending compaction." << std::endl;
     AddToCompactionQueue(cfd);
   }
 }
@@ -3414,6 +3421,7 @@ void DBImpl::BackgroundCallCompaction(PrepickedCompaction* prepicked_compaction,
     InstrumentedMutexLock l(&mutex_);
 
     num_running_compactions_++;
+    std::cout << "yuzhangyu_debug, num_running_compactions_ increase to: " << num_running_compactions_ << std::endl;
 
     std::unique_ptr<std::list<uint64_t>::iterator>
         pending_outputs_inserted_elem(new std::list<uint64_t>::iterator(
@@ -3540,6 +3548,7 @@ Status DBImpl::BackgroundCompaction(bool* made_progress,
   mutex_.AssertHeld();
   TEST_SYNC_POINT("DBImpl::BackgroundCompaction:Start");
 
+  std::cout << "yuzhangyu_debug, BackgroundCompaction executing." << std::endl;
   const ReadOptions read_options(Env::IOActivity::kCompaction);
   const WriteOptions write_options(Env::IOActivity::kCompaction);
 
@@ -3696,6 +3705,7 @@ Status DBImpl::BackgroundCompaction(bool* made_progress,
                            &snapshot_checker);
         assert(is_snapshot_supported_ || snapshots_.empty());
       }
+      std::cout << "yuzhangyu_debug, BackgroundCompaction picking a compaction" << std::endl;
       c.reset(cfd->PickCompaction(mutable_cf_options, mutable_db_options_,
                                   snapshot_seqs, snapshot_checker, log_buffer));
       TEST_SYNC_POINT("DBImpl::BackgroundCompaction():AfterPickCompaction");

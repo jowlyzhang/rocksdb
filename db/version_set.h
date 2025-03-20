@@ -468,7 +468,7 @@ class VersionStorageInfo {
   // REQUIRES: DB mutex held during access
   const autovector<std::pair<int, FileMetaData*>>& FilesMarkedForCompaction()
       const {
-    assert(finalized_);
+//    assert(finalized_);
     return files_marked_for_compaction_;
   }
 

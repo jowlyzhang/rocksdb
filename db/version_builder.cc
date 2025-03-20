@@ -22,6 +22,7 @@
 #include <unordered_set>
 #include <utility>
 #include <vector>
+#include <iostream>
 
 #include "cache/cache_reservation_manager.h"
 #include "db/blob/blob_file_cache.h"
@@ -1386,6 +1387,8 @@ class VersionBuilder::Rep {
         vstorage->RemoveCurrentStats(f);
       } else {
         vstorage->AddFile(level, f);
+        std::cout << "yuzhangyu_debug, adding file " << file_number << " to new Version, its marked for compaction flag is: "
+          << f->marked_for_compaction << std::endl;
       }
     }
   }

@@ -19,6 +19,7 @@
 #include <string>
 #include <unordered_map>
 #include <vector>
+#include <iostream>
 
 #include "db/blob/blob_fetcher.h"
 #include "db/blob/blob_file_cache.h"
@@ -3629,14 +3630,17 @@ void VersionStorageInfo::ComputeCompactionScore(
 
 void VersionStorageInfo::ComputeFilesMarkedForCompaction(int last_level) {
   files_marked_for_compaction_.clear();
-  int last_qualify_level = 0;
+  int last_qualify_level = last_level;
   standalone_range_tombstone_files_mark_threshold_ = kMaxSequenceNumber;
 
   // Do not include files from the last level with data
   // If table properties collector suggests a file on the last level,
   // we should not move it to a new level.
   for (int level = last_level; level >= 1; level--) {
-    if (!files_[level].empty()) {
+    if (files_[level].size() == 1 && files_[level][0]->FileIsStandAloneRangeTombstone()) {
+      last_qualify_level = level;
+      break;
+    } else if (!files_[level].empty()) {
       last_qualify_level = level - 1;
       break;
     }
@@ -5251,6 +5255,12 @@ void VersionSet::AppendVersion(ColumnFamilyData* column_family_data,
   v->storage_info()->ComputeCompactionScore(
       column_family_data->ioptions(),
       column_family_data->GetLatestMutableCFOptions());
+  std::cout << "yuzhangyu_debug, new Version's compaction score is being re-calculated." << std::endl;
+  auto files_marked_for_compaction = v->storage_info()->FilesMarkedForCompaction();
+  std::cout << "yuzhangyu_degbug, new Version's files marked for compaction is empty? " << files_marked_for_compaction.empty() << std::endl;
+  for (auto pair : files_marked_for_compaction) {
+    std::cout << "yuzhangyu_debug, file is marked for compaction: " << pair.second->fd.GetNumber() << std::endl;
+  }
 
   // Mark v finalized
   v->storage_info_.SetFinalized();
