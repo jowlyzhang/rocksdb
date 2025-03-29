@@ -537,6 +537,9 @@ class ColumnFamilyData {
     assert(!ts_low.empty());
     const Comparator* ucmp = user_comparator();
     assert(ucmp);
+    if (ucmp->timestamp_size() == 0) {
+      return;
+    }
     if (full_history_ts_low_.empty() ||
         ucmp->CompareTimestamp(ts_low, full_history_ts_low_) > 0) {
       full_history_ts_low_ = std::move(ts_low);
@@ -544,8 +547,10 @@ class ColumnFamilyData {
   }
 
   const std::string& GetFullHistoryTsLow() const {
-    if (user_comparator()->timestamp_size() == 0) {
-      return "";
+    const Comparator* ucmp = user_comparator();
+    assert(ucmp);
+    if (ucmp->timestamp_size() == 0) {
+      assert(full_history_ts_low_.empty());
     }
     return full_history_ts_low_;
   }
