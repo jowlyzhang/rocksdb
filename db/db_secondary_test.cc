@@ -1352,6 +1352,7 @@ TEST_F(DBSecondaryTestWithTimestamp, IteratorAndGetReadTimestampSizeMismatch) {
   const size_t kTimestampSize = Timestamp(0, 0).size();
   TestComparator test_cmp(kTimestampSize);
   options.comparator = &test_cmp;
+  options.persist_user_defined_timestamps = true;
   options.memtable_factory.reset(
       test::NewSpecialSkipListFactory(kNumKeysPerFile));
   DestroyAndReopen(options);
@@ -1440,6 +1441,7 @@ TEST_F(DBSecondaryTestWithTimestamp,
   const size_t kTimestampSize = Timestamp(0, 0).size();
   TestComparator test_cmp(kTimestampSize);
   options.comparator = &test_cmp;
+  options.persist_user_defined_timestamps = true;
   options.memtable_factory.reset(
       test::NewSpecialSkipListFactory(kNumKeysPerFile));
   DestroyAndReopen(options);
@@ -1481,6 +1483,7 @@ TEST_F(DBSecondaryTestWithTimestamp, IteratorAndGet) {
   const size_t kTimestampSize = Timestamp(0, 0).size();
   TestComparator test_cmp(kTimestampSize);
   options.comparator = &test_cmp;
+  options.persist_user_defined_timestamps = true;
   options.memtable_factory.reset(
       test::NewSpecialSkipListFactory(kNumKeysPerFile));
   DestroyAndReopen(options);
@@ -1588,6 +1591,7 @@ TEST_F(DBSecondaryTestWithTimestamp, IteratorsReadTimestampSizeMismatch) {
   const size_t kTimestampSize = Timestamp(0, 0).size();
   TestComparator test_cmp(kTimestampSize);
   options.comparator = &test_cmp;
+  options.persist_user_defined_timestamps = true;
   options.memtable_factory.reset(
       test::NewSpecialSkipListFactory(kNumKeysPerFile));
   DestroyAndReopen(options);
@@ -1713,6 +1717,7 @@ TEST_F(DBSecondaryTestWithTimestamp,
   const size_t kTimestampSize = Timestamp(0, 0).size();
   TestComparator test_cmp(kTimestampSize);
   options.comparator = &test_cmp;
+  options.persist_user_defined_timestamps = true;
   options.memtable_factory.reset(
       test::NewSpecialSkipListFactory(kNumKeysPerFile));
   DestroyAndReopen(options);
@@ -1749,6 +1754,7 @@ TEST_F(DBSecondaryTestWithTimestamp, Iterators) {
   const size_t kTimestampSize = Timestamp(0, 0).size();
   TestComparator test_cmp(kTimestampSize);
   options.comparator = &test_cmp;
+  options.persist_user_defined_timestamps = true;
   options.memtable_factory.reset(
       test::NewSpecialSkipListFactory(kNumKeysPerFile));
   DestroyAndReopen(options);

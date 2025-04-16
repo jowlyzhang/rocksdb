@@ -43,6 +43,7 @@ TEST_F(DBBasicTestWithTimestamp, SanityChecks) {
   Options options1 = CurrentOptions();
   options1.env = env_;
   options1.comparator = test::BytewiseComparatorWithU64TsWrapper();
+  options1.persist_user_defined_timestamps = true;
   options1.merge_operator = MergeOperators::CreateStringAppendTESTOperator();
   assert(options1.comparator &&
          options1.comparator->timestamp_size() == sizeof(uint64_t));
@@ -126,6 +127,7 @@ TEST_F(DBBasicTestWithTimestamp, MixedCfs) {
   const size_t kTimestampSize = Timestamp(0, 0).size();
   TestComparator test_cmp(kTimestampSize);
   options1.comparator = &test_cmp;
+  options1.persist_user_defined_timestamps = true;
   ColumnFamilyHandle* handle = nullptr;
   Status s = db_->CreateColumnFamily(options1, "data", &handle);
   ASSERT_OK(s);
@@ -187,6 +189,7 @@ TEST_F(DBBasicTestWithTimestamp, MultiGetMultipleCfs) {
   options.create_if_missing = true;
   options.avoid_flush_during_shutdown = true;
   options.comparator = &test_cmp;
+  options.persist_user_defined_timestamps = true;
   DestroyAndReopen(options);
 
   Options options1 = CurrentOptions();
@@ -250,6 +253,7 @@ TEST_F(DBBasicTestWithTimestamp, CompactRangeWithSpecifiedRange) {
   const size_t kTimestampSize = Timestamp(0, 0).size();
   TestComparator test_cmp(kTimestampSize);
   options.comparator = &test_cmp;
+  options.persist_user_defined_timestamps = true;
   DestroyAndReopen(options);
 
   WriteOptions write_opts;
@@ -276,6 +280,7 @@ TEST_F(DBBasicTestWithTimestamp, GcPreserveLatestVersionBelowFullHistoryLow) {
   const size_t kTimestampSize = Timestamp(0, 0).size();
   TestComparator test_cmp(kTimestampSize);
   options.comparator = &test_cmp;
+  options.persist_user_defined_timestamps = true;
   DestroyAndReopen(options);
 
   std::string ts_str = Timestamp(1, 0);
@@ -330,6 +335,7 @@ TEST_F(DBBasicTestWithTimestamp, UpdateFullHistoryTsLow) {
   const size_t kTimestampSize = Timestamp(0, 0).size();
   TestComparator test_cmp(kTimestampSize);
   options.comparator = &test_cmp;
+  options.persist_user_defined_timestamps = true;
   DestroyAndReopen(options);
 
   const std::string kKey = "test kKey";
@@ -427,6 +433,7 @@ TEST_F(DBBasicTestWithTimestamp, UpdateFullHistoryTsLowWithPublicAPI) {
   const size_t kTimestampSize = Timestamp(0, 0).size();
   TestComparator test_cmp(kTimestampSize);
   options.comparator = &test_cmp;
+  options.persist_user_defined_timestamps = true;
   DestroyAndReopen(options);
   std::string ts_low_str = Timestamp(9, 0);
   ASSERT_OK(
@@ -473,6 +480,7 @@ TEST_F(DBBasicTestWithTimestamp, GetApproximateSizes) {
   const size_t kTimestampSize = Timestamp(0, 0).size();
   TestComparator test_cmp(kTimestampSize);
   options.comparator = &test_cmp;
+  options.persist_user_defined_timestamps = true;
   DestroyAndReopen(options);
   auto default_cf = db_->DefaultColumnFamily();
 
@@ -557,6 +565,7 @@ TEST_F(DBBasicTestWithTimestamp, SimpleIterate) {
   const size_t kTimestampSize = Timestamp(0, 0).size();
   TestComparator test_cmp(kTimestampSize);
   options.comparator = &test_cmp;
+  options.persist_user_defined_timestamps = true;
   options.memtable_factory.reset(
       test::NewSpecialSkipListFactory(kNumKeysPerFile));
   DestroyAndReopen(options);
@@ -639,6 +648,7 @@ TEST_F(DBBasicTestWithTimestamp, TrimHistoryTest) {
   const size_t kTimestampSize = Timestamp(0, 0).size();
   TestComparator test_cmp(kTimestampSize);
   options.comparator = &test_cmp;
+  options.persist_user_defined_timestamps = true;
   DestroyAndReopen(options);
   auto check_value_by_ts = [](DB* db, Slice key, std::string readTs,
                               Status status, std::string checkValue,
@@ -709,6 +719,7 @@ TEST_F(DBBasicTestWithTimestamp, OpenAndTrimHistoryInvalidOptionTest) {
   const size_t kTimestampSize = Timestamp(0, 0).size();
   TestComparator test_cmp(kTimestampSize);
   options.comparator = &test_cmp;
+  options.persist_user_defined_timestamps = true;
 
   ColumnFamilyOptions cf_options(options);
   std::vector<ColumnFamilyDescriptor> column_families;
@@ -727,6 +738,7 @@ TEST_F(DBBasicTestWithTimestamp, GetTimestampTableProperties) {
   const size_t kTimestampSize = Timestamp(0, 0).size();
   TestComparator test_cmp(kTimestampSize);
   options.comparator = &test_cmp;
+  options.persist_user_defined_timestamps = true;
   DestroyAndReopen(options);
   // Create 2 tables
   for (int table = 0; table < 2; ++table) {
@@ -781,6 +793,7 @@ TEST_P(DBBasicTestWithTimestampTableOptions, GetAndMultiGet) {
   const size_t kTimestampSize = Timestamp(0, 0).size();
   TestComparator cmp(kTimestampSize);
   options.comparator = &cmp;
+  options.persist_user_defined_timestamps = true;
   DestroyAndReopen(options);
   constexpr uint64_t kNumKeys = 1024;
   for (uint64_t k = 0; k < kNumKeys; ++k) {
@@ -854,6 +867,7 @@ TEST_P(DBBasicTestWithTimestampTableOptions, SeekWithPrefixLessThanKey) {
   const size_t kTimestampSize = Timestamp(0, 0).size();
   TestComparator test_cmp(kTimestampSize);
   options.comparator = &test_cmp;
+  options.persist_user_defined_timestamps = true;
   DestroyAndReopen(options);
 
   WriteOptions write_opts;
@@ -909,6 +923,7 @@ TEST_P(DBBasicTestWithTimestampTableOptions, SeekWithCappedPrefix) {
   const size_t kTimestampSize = Timestamp(0, 0).size();
   TestComparator test_cmp(kTimestampSize);
   options.comparator = &test_cmp;
+  options.persist_user_defined_timestamps = true;
   DestroyAndReopen(options);
 
   WriteOptions write_opts;
@@ -959,6 +974,7 @@ TEST_P(DBBasicTestWithTimestampTableOptions, SeekWithBound) {
   const size_t kTimestampSize = Timestamp(0, 0).size();
   TestComparator test_cmp(kTimestampSize);
   options.comparator = &test_cmp;
+  options.persist_user_defined_timestamps = true;
   DestroyAndReopen(options);
 
   WriteOptions write_opts;
@@ -1016,6 +1032,7 @@ TEST_F(DBBasicTestWithTimestamp, ChangeIterationDirection) {
   const size_t kTimestampSize = Timestamp(0, 0).size();
   TestComparator test_cmp(kTimestampSize);
   options.comparator = &test_cmp;
+  options.persist_user_defined_timestamps = true;
   options.prefix_extractor.reset(NewFixedPrefixTransform(1));
   options.prefix_seek_opt_in_only = false;  // Use legacy prefix seek
   options.statistics = ROCKSDB_NAMESPACE::CreateDBStatistics();
@@ -1104,6 +1121,7 @@ TEST_F(DBBasicTestWithTimestamp, SimpleForwardIterateLowerTsBound) {
   const size_t kTimestampSize = Timestamp(0, 0).size();
   TestComparator test_cmp(kTimestampSize);
   options.comparator = &test_cmp;
+  options.persist_user_defined_timestamps = true;
   options.memtable_factory.reset(
       test::NewSpecialSkipListFactory(kNumKeysPerFile));
   DestroyAndReopen(options);
@@ -1183,6 +1201,7 @@ TEST_F(DBBasicTestWithTimestamp, BackwardIterateLowerTsBound) {
   const size_t kTimestampSize = Timestamp(0, 0).size();
   TestComparator test_cmp(kTimestampSize);
   options.comparator = &test_cmp;
+  options.persist_user_defined_timestamps = true;
   options.memtable_factory.reset(
       test::NewSpecialSkipListFactory(kNumKeysPerFile));
   DestroyAndReopen(options);
@@ -1263,6 +1282,7 @@ TEST_F(DBBasicTestWithTimestamp, SimpleBackwardIterateLowerTsBound) {
   const size_t kTimestampSize = Timestamp(0, 0).size();
   TestComparator test_cmp(kTimestampSize);
   options.comparator = &test_cmp;
+  options.persist_user_defined_timestamps = true;
   DestroyAndReopen(options);
 
   std::string ts_ub_buf = Timestamp(5, 0);
@@ -1325,6 +1345,7 @@ TEST_F(DBBasicTestWithTimestamp, BackwardIterateLowerTsBound_Reseek) {
   const size_t kTimestampSize = Timestamp(0, 0).size();
   TestComparator test_cmp(kTimestampSize);
   options.comparator = &test_cmp;
+  options.persist_user_defined_timestamps = true;
   DestroyAndReopen(options);
 
   for (int i = 0; i < 10; ++i) {
@@ -1372,6 +1393,7 @@ TEST_F(DBBasicTestWithTimestamp, ReseekToTargetTimestamp) {
   const size_t kTimestampSize = Timestamp(0, 0).size();
   TestComparator test_cmp(kTimestampSize);
   options.comparator = &test_cmp;
+  options.persist_user_defined_timestamps = true;
   DestroyAndReopen(options);
   // Insert kNumKeys
   WriteOptions write_opts;
@@ -1415,6 +1437,7 @@ TEST_F(DBBasicTestWithTimestamp, ReseekToNextUserKey) {
   const size_t kTimestampSize = Timestamp(0, 0).size();
   TestComparator test_cmp(kTimestampSize);
   options.comparator = &test_cmp;
+  options.persist_user_defined_timestamps = true;
   DestroyAndReopen(options);
   // Write kNumKeys + 1 keys
   WriteOptions write_opts;
@@ -1460,6 +1483,7 @@ TEST_F(DBBasicTestWithTimestamp, ReseekToUserKeyBeforeSavedKey) {
   const size_t kTimestampSize = Timestamp(0, 0).size();
   TestComparator test_cmp(kTimestampSize);
   options.comparator = &test_cmp;
+  options.persist_user_defined_timestamps = true;
   DestroyAndReopen(options);
   for (size_t i = 0; i < kNumKeys; ++i) {
     std::string ts = Timestamp(static_cast<uint64_t>(i + 1), 0);
@@ -1487,6 +1511,9 @@ TEST_F(DBBasicTestWithTimestamp, ReseekToUserKeyBeforeSavedKey) {
   Close();
 }
 
+// Test param:
+// 1): whether to persist user defined timestamps
+// 2): max_sequential_skip_in_iterations
 class ReverseIterationWithUnpreparedBlobTest
     : public DBBasicTestWithTimestampBase,
       public testing::WithParamInterface<std::tuple<bool, uint64_t>> {
@@ -1509,6 +1536,9 @@ TEST_P(ReverseIterationWithUnpreparedBlobTest, Basic) {
   const size_t kTimestampSize = Timestamp(0, 0).size();
   TestComparator test_cmp(kTimestampSize);
   options.comparator = &test_cmp;
+  bool persist_udt = std::get<0>(GetParam());
+  options.persist_user_defined_timestamps = persist_udt;
+  options.allow_concurrent_memtable_write = persist_udt;
 
   DestroyAndReopen(options);
 
@@ -1570,6 +1600,7 @@ TEST_F(DBBasicTestWithTimestamp, MultiGetWithFastLocalBloom) {
   const size_t kTimestampSize = Timestamp(0, 0).size();
   TestComparator test_cmp(kTimestampSize);
   options.comparator = &test_cmp;
+  options.persist_user_defined_timestamps = true;
   DestroyAndReopen(options);
 
   // Write any value
@@ -1626,6 +1657,7 @@ TEST_P(DBBasicTestWithTimestampTableOptions, MultiGetWithPrefix) {
   const size_t kTimestampSize = Timestamp(0, 0).size();
   TestComparator test_cmp(kTimestampSize);
   options.comparator = &test_cmp;
+  options.persist_user_defined_timestamps = true;
   DestroyAndReopen(options);
 
   // Write any value
@@ -1687,6 +1719,7 @@ TEST_P(DBBasicTestWithTimestampTableOptions, MultiGetWithMemBloomFilter) {
   const size_t kTimestampSize = Timestamp(0, 0).size();
   TestComparator test_cmp(kTimestampSize);
   options.comparator = &test_cmp;
+  options.persist_user_defined_timestamps = true;
   DestroyAndReopen(options);
 
   // Write any value
@@ -1726,6 +1759,7 @@ TEST_F(DBBasicTestWithTimestamp, MultiGetRangeFiltering) {
   const size_t kTimestampSize = Timestamp(0, 0).size();
   TestComparator test_cmp(kTimestampSize);
   options.comparator = &test_cmp;
+  options.persist_user_defined_timestamps = true;
   DestroyAndReopen(options);
 
   // Write any value
@@ -1779,6 +1813,7 @@ TEST_F(DBBasicTestWithTimestamp, GetWithRowCache) {
   const size_t kTimestampSize = Timestamp(0, 0).size();
   TestComparator test_cmp(kTimestampSize);
   options.comparator = &test_cmp;
+  options.persist_user_defined_timestamps = true;
   DestroyAndReopen(options);
 
   WriteOptions write_opts;
@@ -1935,6 +1970,7 @@ TEST_F(DBBasicTestWithTimestamp, GetWithRowCacheMultiSST) {
   const size_t kTimestampSize = Timestamp(0, 0).size();
   TestComparator test_cmp(kTimestampSize);
   options.comparator = &test_cmp;
+  options.persist_user_defined_timestamps = true;
   options.table_factory.reset(NewBlockBasedTableFactory(table_options));
   options.merge_operator = MergeOperators::CreateStringAppendTESTOperator();
   options.disable_auto_compactions = true;
@@ -1995,6 +2031,7 @@ TEST_P(DBBasicTestWithTimestampTableOptions, MultiGetPrefixFilter) {
   const size_t kTimestampSize = Timestamp(0, 0).size();
   TestComparator test_cmp(kTimestampSize);
   options.comparator = &test_cmp;
+  options.persist_user_defined_timestamps = true;
   DestroyAndReopen(options);
 
   WriteOptions write_opts;
@@ -2029,6 +2066,7 @@ TEST_F(DBBasicTestWithTimestamp, MaxKeysSkippedDuringNext) {
   const size_t kTimestampSize = Timestamp(0, 0).size();
   TestComparator test_cmp(kTimestampSize);
   options.comparator = &test_cmp;
+  options.persist_user_defined_timestamps = true;
   DestroyAndReopen(options);
   constexpr size_t max_skippable_internal_keys = 2;
   const size_t kNumKeys = max_skippable_internal_keys + 2;
@@ -2064,6 +2102,7 @@ TEST_F(DBBasicTestWithTimestamp, MaxKeysSkippedDuringPrev) {
   const size_t kTimestampSize = Timestamp(0, 0).size();
   TestComparator test_cmp(kTimestampSize);
   options.comparator = &test_cmp;
+  options.persist_user_defined_timestamps = true;
   DestroyAndReopen(options);
   constexpr size_t max_skippable_internal_keys = 2;
   const size_t kNumKeys = max_skippable_internal_keys + 2;
@@ -2105,6 +2144,7 @@ TEST_F(DBBasicTestWithTimestamp, CompactDeletionWithTimestampMarkerToBottom) {
   const size_t kTimestampSize = Timestamp(0, 0).size();
   TestComparator test_cmp(kTimestampSize);
   options.comparator = &test_cmp;
+  options.persist_user_defined_timestamps = true;
   options.num_levels = 2;
   options.level0_file_num_compaction_trigger = 2;
   DestroyAndReopen(options);
@@ -2177,6 +2217,7 @@ TEST_P(DBBasicTestWithTimestampFilterPrefixSettings, GetAndMultiGet) {
   const size_t kTimestampSize = Timestamp(0, 0).size();
   TestComparator test_cmp(kTimestampSize);
   options.comparator = &test_cmp;
+  options.persist_user_defined_timestamps = true;
   DestroyAndReopen(options);
   const int kMaxKey = 1000;
 
@@ -2417,6 +2458,7 @@ TEST_F(DataVisibilityTest, PointLookupWithoutSnapshot1) {
   const size_t kTimestampSize = Timestamp(0, 0).size();
   TestComparator test_cmp(kTimestampSize);
   options.comparator = &test_cmp;
+  options.persist_user_defined_timestamps = true;
   DestroyAndReopen(options);
   SyncPoint::GetInstance()->DisableProcessing();
   SyncPoint::GetInstance()->LoadDependency({
@@ -2463,6 +2505,7 @@ TEST_F(DataVisibilityTest, PointLookupWithoutSnapshot2) {
   const size_t kTimestampSize = Timestamp(0, 0).size();
   TestComparator test_cmp(kTimestampSize);
   options.comparator = &test_cmp;
+  options.persist_user_defined_timestamps = true;
   DestroyAndReopen(options);
   SyncPoint::GetInstance()->DisableProcessing();
   SyncPoint::GetInstance()->LoadDependency({
@@ -2513,6 +2556,7 @@ TEST_F(DataVisibilityTest, PointLookupWithSnapshot1) {
   const size_t kTimestampSize = Timestamp(0, 0).size();
   TestComparator test_cmp(kTimestampSize);
   options.comparator = &test_cmp;
+  options.persist_user_defined_timestamps = true;
   DestroyAndReopen(options);
   SyncPoint::GetInstance()->DisableProcessing();
   SyncPoint::GetInstance()->LoadDependency({
@@ -2565,6 +2609,7 @@ TEST_F(DataVisibilityTest, PointLookupWithSnapshot2) {
   const size_t kTimestampSize = Timestamp(0, 0).size();
   TestComparator test_cmp(kTimestampSize);
   options.comparator = &test_cmp;
+  options.persist_user_defined_timestamps = true;
   DestroyAndReopen(options);
   SyncPoint::GetInstance()->DisableProcessing();
   SyncPoint::GetInstance()->LoadDependency({
@@ -2615,6 +2660,7 @@ TEST_F(DataVisibilityTest, RangeScanWithoutSnapshot) {
   const size_t kTimestampSize = Timestamp(0, 0).size();
   TestComparator test_cmp(kTimestampSize);
   options.comparator = &test_cmp;
+  options.persist_user_defined_timestamps = true;
   DestroyAndReopen(options);
   SyncPoint::GetInstance()->DisableProcessing();
   SyncPoint::GetInstance()->LoadDependency({
@@ -2660,6 +2706,7 @@ TEST_F(DataVisibilityTest, RangeScanWithSnapshot) {
   const size_t kTimestampSize = Timestamp(0, 0).size();
   TestComparator test_cmp(kTimestampSize);
   options.comparator = &test_cmp;
+  options.persist_user_defined_timestamps = true;
   DestroyAndReopen(options);
   SyncPoint::GetInstance()->DisableProcessing();
   SyncPoint::GetInstance()->LoadDependency({
@@ -2707,6 +2754,7 @@ TEST_F(DataVisibilityTest, MultiGetWithTimestamp) {
   const size_t kTimestampSize = Timestamp(0, 0).size();
   TestComparator test_cmp(kTimestampSize);
   options.comparator = &test_cmp;
+  options.persist_user_defined_timestamps = true;
   DestroyAndReopen(options);
 
   const Snapshot* snap0 = db_->GetSnapshot();
@@ -2750,6 +2798,7 @@ TEST_F(DataVisibilityTest, MultiGetWithoutSnapshot) {
   const size_t kTimestampSize = Timestamp(0, 0).size();
   TestComparator test_cmp(kTimestampSize);
   options.comparator = &test_cmp;
+  options.persist_user_defined_timestamps = true;
   DestroyAndReopen(options);
 
   SyncPoint::GetInstance()->DisableProcessing();
@@ -2788,6 +2837,7 @@ TEST_F(DataVisibilityTest, MultiGetCrossCF) {
   const size_t kTimestampSize = Timestamp(0, 0).size();
   TestComparator test_cmp(kTimestampSize);
   options.comparator = &test_cmp;
+  options.persist_user_defined_timestamps = true;
   DestroyAndReopen(options);
 
   CreateAndReopenWithCF({"second"}, options);
@@ -2869,6 +2919,7 @@ TEST_P(DBBasicTestWithTimestampCompressionSettings, PutAndGet) {
   size_t ts_sz = Timestamp(0, 0).size();
   TestComparator test_cmp(ts_sz);
   options.comparator = &test_cmp;
+  options.persist_user_defined_timestamps = true;
   BlockBasedTableOptions bbto;
   bbto.filter_policy = std::get<0>(GetParam());
   bbto.whole_key_filtering = true;
@@ -2941,6 +2992,7 @@ TEST_P(DBBasicTestWithTimestampCompressionSettings, PutDeleteGet) {
   const size_t kTimestampSize = Timestamp(0, 0).size();
   TestComparator test_cmp(kTimestampSize);
   options.comparator = &test_cmp;
+  options.persist_user_defined_timestamps = true;
   const int kNumKeysPerFile = 1024;
   options.memtable_factory.reset(
       test::NewSpecialSkipListFactory(kNumKeysPerFile));
@@ -3090,6 +3142,7 @@ TEST_P(DBBasicTestWithTimestampCompressionSettings, PutAndGetWithCompaction) {
   size_t ts_sz = Timestamp(0, 0).size();
   TestComparator test_cmp(ts_sz);
   options.comparator = &test_cmp;
+  options.persist_user_defined_timestamps = true;
   BlockBasedTableOptions bbto;
   bbto.filter_policy = std::get<0>(GetParam());
   bbto.whole_key_filtering = true;
@@ -3207,6 +3260,7 @@ TEST_F(DBBasicTestWithTimestamp, BatchWriteAndMultiGet) {
   size_t ts_sz = Timestamp(0, 0).size();
   TestComparator test_cmp(ts_sz);
   options.comparator = &test_cmp;
+  options.persist_user_defined_timestamps = true;
   BlockBasedTableOptions bbto;
   bbto.filter_policy.reset(NewBloomFilterPolicy(
       10 /*bits_per_key*/, false /*use_block_based_builder*/));
@@ -3294,6 +3348,7 @@ TEST_F(DBBasicTestWithTimestamp, MultiGetNoReturnTs) {
   const size_t kTimestampSize = Timestamp(0, 0).size();
   TestComparator test_cmp(kTimestampSize);
   options.comparator = &test_cmp;
+  options.persist_user_defined_timestamps = true;
   DestroyAndReopen(options);
   WriteOptions write_opts;
   std::string ts = Timestamp(1, 0);
@@ -3365,6 +3420,7 @@ TEST_P(DBBasicTestWithTimestampPrefixSeek, IterateWithPrefix) {
   const size_t kTimestampSize = Timestamp(0, 0).size();
   TestComparator test_cmp(kTimestampSize);
   options.comparator = &test_cmp;
+  options.persist_user_defined_timestamps = true;
   options.prefix_extractor = std::get<0>(GetParam());
   options.memtable_factory.reset(
       test::NewSpecialSkipListFactory(kNumKeysPerFile));
@@ -3523,6 +3579,7 @@ TEST_P(DBBasicTestWithTsIterTombstones, IterWithDelete) {
   const size_t kTimestampSize = Timestamp(0, 0).size();
   TestComparator test_cmp(kTimestampSize);
   options.comparator = &test_cmp;
+  options.persist_user_defined_timestamps = true;
   options.prefix_extractor = std::get<0>(GetParam());
   options.memtable_factory.reset(
       test::NewSpecialSkipListFactory(kNumKeysPerFile));
@@ -3620,6 +3677,7 @@ TEST_F(UpdateFullHistoryTsLowTest, ConcurrentUpdate) {
   const size_t kTimestampSize = lower_ts_low.size();
   TestComparator test_cmp(kTimestampSize);
   options.comparator = &test_cmp;
+  options.persist_user_defined_timestamps = true;
 
   DestroyAndReopen(options);
   SyncPoint::GetInstance()->DisableProcessing();
@@ -4106,6 +4164,7 @@ TEST_F(DBBasicTestWithTimestamp,
   const size_t kTimestampSize = Timestamp(0, 0).size();
   TestComparator test_cmp(kTimestampSize);
   options.comparator = &test_cmp;
+  options.persist_user_defined_timestamps = true;
   DestroyAndReopen(options);
 
   std::string ts_str = Timestamp(1, 0);
@@ -4174,6 +4233,7 @@ TEST_F(DBBasicTestWithTimestamp,
   const size_t kTimestampSize = Timestamp(0, 0).size();
   TestComparator test_cmp(kTimestampSize);
   options.comparator = &test_cmp;
+  options.persist_user_defined_timestamps = true;
   options.num_levels = 2;
   DestroyAndReopen(options);
 
@@ -4282,6 +4342,7 @@ TEST_P(DeleteRangeWithTimestampTableOptions, BasicReadAndIterate) {
   options.create_if_missing = true;
   bool persist_udt = test::ShouldPersistUDT(std::get<1>(GetParam()));
   options.comparator = test::BytewiseComparatorWithU64TsWrapper();
+  options.persist_user_defined_timestamps = true;
   options.persist_user_defined_timestamps = persist_udt;
   // UDT in memtables only not compatible with concurrent memtable writes.
   options.allow_concurrent_memtable_write = persist_udt;
@@ -4456,6 +4517,7 @@ TEST_F(DBBasicTestWithTimestamp, DeleteRangeGetIteratorWithSnapshot) {
   const size_t kTimestampSize = Timestamp(0, 0).size();
   TestComparator test_cmp(kTimestampSize);
   options.comparator = &test_cmp;
+  options.persist_user_defined_timestamps = true;
   DestroyAndReopen(options);
   WriteOptions write_opts;
   std::string put_ts = Timestamp(0, 0);
@@ -4598,6 +4660,7 @@ TEST_F(DBBasicTestWithTimestamp, MergeBasic) {
   const size_t kTimestampSize = Timestamp(0, 0).size();
   TestComparator test_cmp(kTimestampSize);
   options.comparator = &test_cmp;
+  options.persist_user_defined_timestamps = true;
   options.merge_operator = std::make_shared<StringAppendTESTOperator>('.');
   DestroyAndReopen(options);
 
@@ -4708,6 +4771,7 @@ TEST_F(DBBasicTestWithTimestamp, MergeAfterDeletion) {
   const size_t kTimestampSize = Timestamp(0, 0).size();
   TestComparator test_cmp(kTimestampSize);
   options.comparator = &test_cmp;
+  options.persist_user_defined_timestamps = true;
   options.merge_operator = std::make_shared<StringAppendTESTOperator>('.');
   DestroyAndReopen(options);
 
@@ -4780,6 +4844,7 @@ TEST_F(DBBasicTestWithTimestamp, RangeTombstoneApproximateSize) {
   const size_t kTimestampSize = Timestamp(0, 0).size();
   TestComparator test_cmp(kTimestampSize);
   options.comparator = &test_cmp;
+  options.persist_user_defined_timestamps = true;
   DestroyAndReopen(options);
   // So that the compaction below is non-bottommost and will calcualte
   // compensated range tombstone size.
@@ -4808,6 +4873,7 @@ TEST_F(DBBasicTestWithTimestamp, IterSeekToLastWithIterateUpperbound) {
   const size_t kTimestampSize = Timestamp(0, 0).size();
   TestComparator test_cmp(kTimestampSize);
   options.comparator = &test_cmp;
+  options.persist_user_defined_timestamps = true;
   DestroyAndReopen(options);
 
   ASSERT_OK(db_->Put(WriteOptions(), Key(1), Timestamp(2, 0), "val"));
@@ -4835,6 +4901,7 @@ TEST_F(DBBasicTestWithTimestamp, TimestampFilterTableReadOnGet) {
   const size_t kTimestampSize = Timestamp(0, 0).size();
   TestComparator test_cmp(kTimestampSize);
   options.comparator = &test_cmp;
+  options.persist_user_defined_timestamps = true;
   BlockBasedTableOptions bbto;
   bbto.block_size = 100;
   options.table_factory.reset(NewBlockBasedTableFactory(bbto));

@@ -1954,6 +1954,7 @@ TEST_P(DBDeleteFileRangeTest, DeleteFileRange) {
   options.max_background_compactions = 3;
   if (enable_udt_) {
     options.comparator = test::BytewiseComparatorWithU64TsWrapper();
+    options.persist_user_defined_timestamps = true;
   }
 
   DestroyAndReopen(options);
@@ -2076,6 +2077,7 @@ TEST_P(DBDeleteFileRangeTest, DeleteFilesInRanges) {
   options.disable_auto_compactions = true;
   if (enable_udt_) {
     options.comparator = test::BytewiseComparatorWithU64TsWrapper();
+    options.persist_user_defined_timestamps = true;
   }
 
   DestroyAndReopen(options);
@@ -2194,6 +2196,7 @@ TEST_P(DBDeleteFileRangeTest, DeleteFileRangeFileEndpointsOverlapBug) {
   options.target_file_size_base = 1 << 10;  // 1KB
   if (enable_udt_) {
     options.comparator = test::BytewiseComparatorWithU64TsWrapper();
+    options.persist_user_defined_timestamps = true;
   }
   DestroyAndReopen(options);
 

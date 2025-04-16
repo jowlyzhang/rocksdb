@@ -426,6 +426,7 @@ class SstFileReaderTimestampNotPersistedTest
     options_.env = env;
 
     options_.comparator = test::BytewiseComparatorWithU64TsWrapper();
+    options_.persist_user_defined_timestamps = true;
 
     options_.persist_user_defined_timestamps = false;
 
@@ -687,6 +688,7 @@ TEST_F(SstFileReaderTableIteratorTest, UserDefinedTimestampsEnabled) {
   Options options = CurrentOptions();
   const Comparator* ucmp = test::BytewiseComparatorWithU64TsWrapper();
   options.comparator = ucmp;
+  options.persist_user_defined_timestamps = true;
   options.disable_auto_compactions = true;
 
   DestroyAndReopen(options);

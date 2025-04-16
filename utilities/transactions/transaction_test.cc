@@ -6714,6 +6714,7 @@ TEST_P(TransactionTest, OpenAndEnableU64Timestamp) {
   const std::string test_cf_name = "test_cf";
   ColumnFamilyOptions cf_opts;
   cf_opts.comparator = test::BytewiseComparatorWithU64TsWrapper();
+  cf_opts.persist_user_defined_timestamps = true;
   {
     ColumnFamilyHandle* cfh = nullptr;
     const Status s = db->CreateColumnFamily(cf_opts, test_cf_name, &cfh);

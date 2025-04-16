@@ -7948,6 +7948,7 @@ TEST_F(DBTest2, GetLatestSeqAndTsForKey) {
   options.create_if_missing = true;
   options.disable_auto_compactions = true;
   options.comparator = test::BytewiseComparatorWithU64TsWrapper();
+  options.persist_user_defined_timestamps = true;
   options.statistics = CreateDBStatistics();
 
   Reopen(options);

@@ -73,6 +73,7 @@ TEST_F(DBReadOnlyTestWithTimestamp, IteratorAndGetReadTimestampSizeMismatch) {
   const size_t kTimestampSize = Timestamp(0, 0).size();
   TestComparator test_cmp(kTimestampSize);
   options.comparator = &test_cmp;
+  options.persist_user_defined_timestamps = true;
   options.memtable_factory.reset(
       test::NewSpecialSkipListFactory(kNumKeysPerFile));
   DestroyAndReopen(options);
@@ -157,6 +158,7 @@ TEST_F(DBReadOnlyTestWithTimestamp,
   const size_t kTimestampSize = Timestamp(0, 0).size();
   TestComparator test_cmp(kTimestampSize);
   options.comparator = &test_cmp;
+  options.persist_user_defined_timestamps = true;
   options.memtable_factory.reset(
       test::NewSpecialSkipListFactory(kNumKeysPerFile));
   DestroyAndReopen(options);
@@ -196,6 +198,7 @@ TEST_F(DBReadOnlyTestWithTimestamp, IteratorAndGet) {
   const size_t kTimestampSize = Timestamp(0, 0).size();
   TestComparator test_cmp(kTimestampSize);
   options.comparator = &test_cmp;
+  options.persist_user_defined_timestamps = true;
   options.memtable_factory.reset(
       test::NewSpecialSkipListFactory(kNumKeysPerFile));
   DestroyAndReopen(options);
@@ -302,6 +305,7 @@ TEST_F(DBReadOnlyTestWithTimestamp, Iterators) {
   const size_t kTimestampSize = Timestamp(0, 0).size();
   TestComparator test_cmp(kTimestampSize);
   options.comparator = &test_cmp;
+  options.persist_user_defined_timestamps = true;
   options.memtable_factory.reset(
       test::NewSpecialSkipListFactory(kNumKeysPerFile));
   DestroyAndReopen(options);
@@ -397,6 +401,7 @@ TEST_F(DBReadOnlyTestWithTimestamp, IteratorsReadTimestampSizeMismatch) {
   const size_t kTimestampSize = Timestamp(0, 0).size();
   TestComparator test_cmp(kTimestampSize);
   options.comparator = &test_cmp;
+  options.persist_user_defined_timestamps = true;
   options.memtable_factory.reset(
       test::NewSpecialSkipListFactory(kNumKeysPerFile));
   DestroyAndReopen(options);
@@ -469,6 +474,7 @@ TEST_F(DBReadOnlyTestWithTimestamp,
   const size_t kTimestampSize = Timestamp(0, 0).size();
   TestComparator test_cmp(kTimestampSize);
   options.comparator = &test_cmp;
+  options.persist_user_defined_timestamps = true;
   options.memtable_factory.reset(
       test::NewSpecialSkipListFactory(kNumKeysPerFile));
   DestroyAndReopen(options);
@@ -504,6 +510,7 @@ TEST_F(DBReadOnlyTestWithTimestamp, CompactedDBGetReadTimestampSizeMismatch) {
   const size_t kTimestampSize = Timestamp(0, 0).size();
   TestComparator test_cmp(kTimestampSize);
   options.comparator = &test_cmp;
+  options.persist_user_defined_timestamps = true;
   options.memtable_factory.reset(
       test::NewSpecialSkipListFactory(kNumKeysPerFile));
   DestroyAndReopen(options);
@@ -586,6 +593,7 @@ TEST_F(DBReadOnlyTestWithTimestamp,
   const size_t kTimestampSize = Timestamp(0, 0).size();
   TestComparator test_cmp(kTimestampSize);
   options.comparator = &test_cmp;
+  options.persist_user_defined_timestamps = true;
   options.memtable_factory.reset(
       test::NewSpecialSkipListFactory(kNumKeysPerFile));
   DestroyAndReopen(options);
@@ -624,6 +632,7 @@ TEST_F(DBReadOnlyTestWithTimestamp, CompactedDBGetWithOnlyOneL0File) {
   const size_t kTimestampSize = Timestamp(0, 0).size();
   TestComparator test_cmp(kTimestampSize);
   options.comparator = &test_cmp;
+  options.persist_user_defined_timestamps = true;
   options.memtable_factory.reset(
       test::NewSpecialSkipListFactory(kNumKeysPerFile));
   DestroyAndReopen(options);
@@ -678,6 +687,7 @@ TEST_F(DBReadOnlyTestWithTimestamp,
   const size_t kTimestampSize = Timestamp(0, 0).size();
   TestComparator test_cmp(kTimestampSize);
   options.comparator = &test_cmp;
+  options.persist_user_defined_timestamps = true;
   options.memtable_factory.reset(
       test::NewSpecialSkipListFactory(kNumKeysPerFile));
   DestroyAndReopen(options);
@@ -733,6 +743,7 @@ TEST_F(DBReadOnlyTestWithTimestamp,
   const size_t kTimestampSize = Timestamp(0, 0).size();
   TestComparator test_cmp(kTimestampSize);
   options.comparator = &test_cmp;
+  options.persist_user_defined_timestamps = true;
   options.memtable_factory.reset(
       test::NewSpecialSkipListFactory(kNumKeysPerFile));
   DestroyAndReopen(options);
@@ -833,6 +844,7 @@ TEST_F(DBReadOnlyTestWithTimestamp,
   const size_t kTimestampSize = Timestamp(0, 0).size();
   TestComparator test_cmp(kTimestampSize);
   options.comparator = &test_cmp;
+  options.persist_user_defined_timestamps = true;
   options.memtable_factory.reset(
       test::NewSpecialSkipListFactory(kNumKeysPerFile));
   DestroyAndReopen(options);
@@ -879,6 +891,7 @@ TEST_F(DBReadOnlyTestWithTimestamp, CompactedDBMultiGetWithOnlyOneL0File) {
   const size_t kTimestampSize = Timestamp(0, 0).size();
   TestComparator test_cmp(kTimestampSize);
   options.comparator = &test_cmp;
+  options.persist_user_defined_timestamps = true;
   options.memtable_factory.reset(
       test::NewSpecialSkipListFactory(kNumKeysPerFile));
   DestroyAndReopen(options);
@@ -944,6 +957,7 @@ TEST_F(DBReadOnlyTestWithTimestamp,
   const size_t kTimestampSize = Timestamp(0, 0).size();
   TestComparator test_cmp(kTimestampSize);
   options.comparator = &test_cmp;
+  options.persist_user_defined_timestamps = true;
   options.memtable_factory.reset(
       test::NewSpecialSkipListFactory(kNumKeysPerFile));
   DestroyAndReopen(options);

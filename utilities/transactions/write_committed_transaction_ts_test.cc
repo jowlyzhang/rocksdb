@@ -40,6 +40,7 @@ TEST_P(WriteCommittedTxnWithTsTest, SanityChecks) {
 
   ColumnFamilyOptions cf_opts;
   cf_opts.comparator = test::BytewiseComparatorWithU64TsWrapper();
+  cf_opts.persist_user_defined_timestamps = true;
   const std::string test_cf_name = "test_cf";
   ColumnFamilyHandle* cfh = nullptr;
   assert(db);
@@ -134,6 +135,7 @@ void CheckKeyValueTsWithIterator(
 // after MyRocks remove this pattern in a refactor.
 TEST_P(WriteCommittedTxnWithTsTest, WritesBypassTransactionAPIs) {
   options.comparator = test::BytewiseComparatorWithU64TsWrapper();
+  options.persist_user_defined_timestamps = true;
   ASSERT_OK(ReOpen());
 
   const std::string test_cf_name = "test_cf";
@@ -258,6 +260,7 @@ TEST_P(WriteCommittedTxnWithTsTest, ReOpenWithTimestamp) {
 
   ColumnFamilyOptions cf_opts;
   cf_opts.comparator = test::BytewiseComparatorWithU64TsWrapper();
+  cf_opts.persist_user_defined_timestamps = true;
   const std::string test_cf_name = "test_cf";
   ColumnFamilyHandle* cfh = nullptr;
   assert(db);
@@ -368,6 +371,7 @@ TEST_P(WriteCommittedTxnWithTsTest, RecoverFromWal) {
 
   ColumnFamilyOptions cf_opts;
   cf_opts.comparator = test::BytewiseComparatorWithU64TsWrapper();
+  cf_opts.persist_user_defined_timestamps = true;
   const std::string test_cf_name = "test_cf";
   ColumnFamilyHandle* cfh = nullptr;
   assert(db);
@@ -785,6 +789,7 @@ TEST_P(WriteCommittedTxnWithTsTest, TransactionDbLevelApi) {
   ColumnFamilyOptions cf_options;
   cf_options.merge_operator = MergeOperators::CreateStringAppendOperator();
   cf_options.comparator = test::BytewiseComparatorWithU64TsWrapper();
+  cf_options.persist_user_defined_timestamps = true;
   const std::string test_cf_name = "test_cf";
   ColumnFamilyHandle* cfh = nullptr;
   assert(db);
@@ -861,6 +866,7 @@ TEST_P(WriteCommittedTxnWithTsTest, Merge) {
 
   ColumnFamilyOptions cf_options;
   cf_options.comparator = test::BytewiseComparatorWithU64TsWrapper();
+  cf_options.persist_user_defined_timestamps = true;
   cf_options.merge_operator = MergeOperators::CreateStringAppendOperator();
   const std::string test_cf_name = "test_cf";
   ColumnFamilyHandle* cfh = nullptr;
@@ -898,6 +904,7 @@ TEST_P(WriteCommittedTxnWithTsTest, GetForUpdate) {
 
   ColumnFamilyOptions cf_options;
   cf_options.comparator = test::BytewiseComparatorWithU64TsWrapper();
+  cf_options.persist_user_defined_timestamps = true;
   const std::string test_cf_name = "test_cf";
   ColumnFamilyHandle* cfh = nullptr;
   assert(db);
@@ -1005,6 +1012,7 @@ TEST_P(WriteCommittedTxnWithTsTest, GetForUpdateUdtValidationNotEnabled) {
 
   ColumnFamilyOptions cf_options;
   cf_options.comparator = test::BytewiseComparatorWithU64TsWrapper();
+  cf_options.persist_user_defined_timestamps = true;
   const std::string test_cf_name = "test_cf";
   ColumnFamilyHandle* cfh = nullptr;
   assert(db);
@@ -1108,6 +1116,7 @@ TEST_P(WriteCommittedTxnWithTsTest, BlindWrite) {
 
   ColumnFamilyOptions cf_options;
   cf_options.comparator = test::BytewiseComparatorWithU64TsWrapper();
+  cf_options.persist_user_defined_timestamps = true;
   const std::string test_cf_name = "test_cf";
   ColumnFamilyHandle* cfh = nullptr;
   assert(db);
@@ -1155,6 +1164,7 @@ TEST_P(WriteCommittedTxnWithTsTest, RefineReadTimestamp) {
 
   ColumnFamilyOptions cf_options;
   cf_options.comparator = test::BytewiseComparatorWithU64TsWrapper();
+  cf_options.persist_user_defined_timestamps = true;
   const std::string test_cf_name = "test_cf";
   ColumnFamilyHandle* cfh = nullptr;
   assert(db);
@@ -1216,6 +1226,7 @@ TEST_P(WriteCommittedTxnWithTsTest, RefineReadTimestamp) {
 
 TEST_P(WriteCommittedTxnWithTsTest, CheckKeysForConflicts) {
   options.comparator = test::BytewiseComparatorWithU64TsWrapper();
+  options.persist_user_defined_timestamps = true;
   ASSERT_OK(ReOpen());
 
   std::unique_ptr<Transaction> txn1(
@@ -1287,6 +1298,7 @@ TEST_P(WriteCommittedTxnWithTsTest, GetEntityForUpdate) {
 
   ColumnFamilyOptions cf_options;
   cf_options.comparator = test::BytewiseComparatorWithU64TsWrapper();
+  cf_options.persist_user_defined_timestamps = true;
 
   const std::string test_cf_name = "test_cf";
 

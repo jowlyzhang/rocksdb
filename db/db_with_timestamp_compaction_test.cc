@@ -55,6 +55,7 @@ TEST_F(TimestampCompatibleCompactionTest, UserKeyCrossFileBoundary) {
   options.env = env_;
   options.compaction_style = kCompactionStyleLevel;
   options.comparator = test::BytewiseComparatorWithU64TsWrapper();
+  options.persist_user_defined_timestamps = true;
   options.level0_file_num_compaction_trigger = 3;
   constexpr size_t kNumKeysPerFile = 101;
   options.memtable_factory.reset(
@@ -114,6 +115,7 @@ TEST_F(TimestampCompatibleCompactionTest, MultipleSubCompactions) {
   options.env = env_;
   options.compaction_style = kCompactionStyleUniversal;
   options.comparator = test::BytewiseComparatorWithU64TsWrapper();
+  options.persist_user_defined_timestamps = true;
   options.level0_file_num_compaction_trigger = 3;
   options.max_subcompactions = 3;
   options.target_file_size_base = 1024;
@@ -204,6 +206,7 @@ TEST_F(TimestampCompatibleCompactionTest, CompactFilesRangeCheckL0) {
   options.sst_partitioner_factory =
       std::make_shared<TestFilePartitionerFactory>();
   options.comparator = test::BytewiseComparatorWithU64TsWrapper();
+  options.persist_user_defined_timestamps = true;
   options.disable_auto_compactions = true;
   DestroyAndReopen(options);
 
@@ -262,6 +265,7 @@ TEST_F(TimestampCompatibleCompactionTest, CompactFilesRangeCheckL1) {
   options.sst_partitioner_factory =
       std::make_shared<TestFilePartitionerFactory>();
   options.comparator = test::BytewiseComparatorWithU64TsWrapper();
+  options.persist_user_defined_timestamps = true;
 
   constexpr int kNumFiles = 4;
   options.level0_file_num_compaction_trigger = kNumFiles;
@@ -327,6 +331,7 @@ TEST_F(TimestampCompatibleCompactionTest, EmptyCompactionOutput) {
   Options options = CurrentOptions();
   options.env = env_;
   options.comparator = test::BytewiseComparatorWithU64TsWrapper();
+  options.persist_user_defined_timestamps = true;
   DestroyAndReopen(options);
 
   std::string ts_str = Timestamp(1);

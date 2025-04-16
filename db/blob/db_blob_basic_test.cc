@@ -2068,6 +2068,7 @@ TEST_F(DBBlobWithTimestampTest, GetBlob) {
   const size_t kTimestampSize = Timestamp(0, 0).size();
   TestComparator test_cmp(kTimestampSize);
   options.comparator = &test_cmp;
+  options.persist_user_defined_timestamps = true;
 
   DestroyAndReopen(options);
   WriteOptions write_opts;
@@ -2098,6 +2099,7 @@ TEST_F(DBBlobWithTimestampTest, MultiGetBlobs) {
   const size_t kTimestampSize = Timestamp(0, 0).size();
   TestComparator test_cmp(kTimestampSize);
   options.comparator = &test_cmp;
+  options.persist_user_defined_timestamps = true;
 
   DestroyAndReopen(options);
 
@@ -2164,6 +2166,7 @@ TEST_F(DBBlobWithTimestampTest, GetMergeBlobWithPut) {
   const size_t kTimestampSize = Timestamp(0, 0).size();
   TestComparator test_cmp(kTimestampSize);
   options.comparator = &test_cmp;
+  options.persist_user_defined_timestamps = true;
 
   DestroyAndReopen(options);
 
@@ -2198,6 +2201,7 @@ TEST_F(DBBlobWithTimestampTest, MultiGetMergeBlobWithPut) {
   const size_t kTimestampSize = Timestamp(0, 0).size();
   TestComparator test_cmp(kTimestampSize);
   options.comparator = &test_cmp;
+  options.persist_user_defined_timestamps = true;
 
   DestroyAndReopen(options);
 
@@ -2245,6 +2249,7 @@ TEST_F(DBBlobWithTimestampTest, IterateBlobs) {
   const size_t kTimestampSize = Timestamp(0, 0).size();
   TestComparator test_cmp(kTimestampSize);
   options.comparator = &test_cmp;
+  options.persist_user_defined_timestamps = true;
 
   DestroyAndReopen(options);
 

@@ -402,6 +402,7 @@ TEST_P(DBTablePropertiesInRangeTest, GetPropertiesOfTablesInRange) {
   bool udt_enabled = GetParam();
   if (udt_enabled) {
     options.comparator = test::BytewiseComparatorWithU64TsWrapper();
+    options.persist_user_defined_timestamps = true;
   }
 
   DestroyAndReopen(options);

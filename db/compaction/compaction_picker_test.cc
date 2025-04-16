@@ -210,6 +210,7 @@ class CompactionPickerTestBase : public testing::Test {
   Options CreateOptions(const Comparator* ucmp) const {
     Options opts;
     opts.comparator = ucmp;
+    opts.persist_user_defined_timestamps = true;
     return opts;
   }
 

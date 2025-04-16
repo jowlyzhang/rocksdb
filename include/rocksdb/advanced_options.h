@@ -1060,7 +1060,7 @@ struct AdvancedColumnFamilyOptions {
   // Default: true (user-defined timestamps are persisted)
   // Not dynamically changeable, change it requires db restart and
   // only compatible changes are allowed.
-  bool persist_user_defined_timestamps = true;
+  bool persist_user_defined_timestamps = false;
 
   // Enable/disable per key-value checksum protection for in memory blocks.
   //
